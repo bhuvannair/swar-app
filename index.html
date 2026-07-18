@@ -1,0 +1,2776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swar — Pitch & Swara Tuner</title>
+  <style>
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --panel-2: #1c232d;
+  --border: #2a323d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #f2a33c;      /* saffron */
+  --accent-soft: #f2a33c33;
+  --green: #4ec9a5;
+  --red: #e5687a;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f1ea;
+    --panel: #ffffff;
+    --panel-2: #f6f3ec;
+    --border: #e2ddd0;
+    --text: #241f17;
+    --muted: #7a7364;
+    --accent-soft: #f2a33c2a;
+    --shadow: 0 10px 40px rgba(60, 50, 20, 0.12);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(1200px 600px at 50% -10%, var(--panel-2), var(--bg));
+  color: var(--text);
+  font-family: var(--font);
+  padding: 24px;
+}
+
+.app {
+  width: 100%;
+  max-width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 28px 26px 20px;
+}
+
+.header { text-align: center; margin-bottom: 22px; }
+.title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.title-en {
+  font-size: 18px;
+  color: var(--accent);
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.subtitle { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+
+/* View tabs (Tuner / Ear Trainer) */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+}
+.tab {
+  flex: 1;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+}
+.tab.active {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.tab:hover:not(.active) { color: var(--text); }
+.panel[hidden] { display: none; }
+.app.wide { max-width: 760px; } /* the ear-trainer keyboard needs more width */
+/* ===== Ear Trainer (scoped under .trainer; maps its tokens onto Swar's) ===== */
+.trainer {
+  --surface: var(--panel);
+  --surface-2: var(--panel-2);
+  --text-mut: var(--muted);
+  --accent-bg: var(--accent-soft);
+  --good: var(--green);
+  --bad: var(--red);
+}
+.tr-grid { display: grid; grid-template-columns: 230px 1fr; gap: 16px; }
+@media (max-width: 720px) {
+  .tr-grid { display: flex; flex-direction: column; }
+  .trainer .stage { order: -1; }
+}
+.trainer .settings { background: var(--surface-2); border-radius: 12px; padding: 16px; align-self: start; display: flex; flex-direction: column; gap: 16px; }
+.trainer .group.bordered { border-top: 1px solid var(--border); padding-top: 14px; }
+.trainer .lbl { font-size: 12px; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+.trainer select { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; }
+.trainer .checkline { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.trainer .inst-status { font-size: 12px; color: var(--text-mut); margin-top: 6px; min-height: 14px; }
+.trainer .slider-row { display: flex; justify-content: space-between; font-size: 13px; margin: 8px 0 3px; }
+.trainer .slider-row .val { color: var(--text-mut); }
+.trainer input[type="range"] { width: 100%; accent-color: var(--accent); }
+.trainer .strings { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 4px; }
+.trainer .strings select { font-size: 12px; padding: 5px 6px; }
+.trainer .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.trainer .chip { font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-mut); cursor: pointer; user-select: none; }
+.trainer .chip.on { background: var(--accent-bg); color: var(--accent); border-color: transparent; }
+.trainer .chip small { opacity: 0.7; margin-left: 3px; }
+.trainer .stage { display: flex; flex-direction: column; gap: 16px; }
+.trainer .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.trainer .hint { margin: 0 0 8px; font-size: 13px; color: var(--text-mut); }
+.trainer .phrase { font-size: 16px; letter-spacing: 2px; color: var(--text-mut); }
+.trainer .phrase .q { color: var(--accent); font-weight: 600; }
+.trainer .btn-row { display: flex; gap: 10px; justify-content: center; }
+.trainer .play-box { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 14px; }
+.trainer .prompt-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.trainer .prompt-row .hint { margin: 0; }
+.trainer .controls-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.trainer .controls-row .score { margin-left: auto; }
+.trainer button { font-size: 14px; padding: 10px 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; }
+.trainer button:hover:not(:disabled) { border-color: var(--text-mut); }
+.trainer button:disabled { opacity: 0.4; cursor: default; }
+.trainer button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.trainer .piano { position: relative; height: 150px; display: flex; margin-bottom: 4px; touch-action: manipulation; }
+.trainer .wkey, .trainer .bkey { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; cursor: pointer; box-sizing: border-box; }
+.trainer .wkey { flex: 1 1 0; min-width: 0; border: 1px solid #ccced4; border-radius: 0 0 6px 6px; background: #f9fafc; color: #23242a; padding-bottom: 8px; }
+.trainer .wkey:active { background: #e9ebf0; }
+.trainer .bkey { position: absolute; top: 0; width: 8%; height: 60%; background: #0e0d0a; border: 1px solid #000; border-radius: 0 0 5px 5px; padding-bottom: 6px; z-index: 2; }
+.trainer .bkey:active { background: #2c2b25; }
+.trainer .wkey.off, .trainer .bkey.off { opacity: 0.3; pointer-events: none; }
+.trainer .klbl-ind { font-size: 13px; line-height: 1.1; }
+.trainer .klbl-west { font-size: 10px; color: var(--text-mut); }
+.trainer .bkey .klbl-ind, .trainer .bkey .klbl-west { color: #efeee6; }
+.trainer .kcount { position: absolute; top: 3px; left: 0; right: 0; text-align: center; font-size: 9px; line-height: 1; color: var(--text-mut); }
+.trainer .bkey .kcount { color: #d7d5cc; }
+.trainer .kcount.good { color: var(--good); }
+.trainer .wkey .klbl-west, .trainer .wkey .kcount { color: #70727a; }
+.trainer .wkey .kcount.good { color: #1d9e75; }
+.trainer .guess-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.trainer .guess-label { font-size: 13px; color: var(--text-mut); }
+.trainer .guess-display { font-size: 15px; font-weight: 500; flex: 1; letter-spacing: 1px; }
+.trainer .guess-display.good { color: var(--good); }
+.trainer .guess-display.bad { color: var(--bad); }
+.trainer .guess-row button { padding: 6px 14px; font-size: 13px; }
+.trainer .feedback { font-size: 13px; font-weight: 500; min-height: 18px; margin: 8px 0 0; }
+.trainer .feedback.good { color: var(--good); }
+.trainer .feedback.bad { color: var(--bad); }
+.trainer .score { font-size: 13px; color: var(--text-mut); }
+
+.controls {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 26px;
+}
+.control { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.control-label { font-size: 12px; color: var(--muted); }
+.select {
+  appearance: none;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: var(--font);
+  cursor: pointer;
+}
+.select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: #1a1206;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+.mic-btn:hover { filter: brightness(1.05); }
+.mic-btn:active { transform: translateY(1px); }
+.mic-btn.listening { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+.mic-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #1a1206; opacity: 0.5;
+}
+.mic-btn.listening .mic-dot {
+  background: var(--red); opacity: 1;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.tuner { display: flex; flex-direction: column; gap: 22px; }
+
+.dial { position: relative; }
+.dial-svg { width: 100%; display: block; }
+.dial-arc {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.tick { stroke: var(--muted); stroke-width: 2; opacity: 0.5; }
+.tick.major { stroke: var(--text); opacity: 0.7; }
+.needle {
+  stroke: var(--accent);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transform-box: view-box;
+  transform-origin: 150px 165px;
+  transition: transform 0.09s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.2s ease;
+}
+.needle.in-tune { stroke: var(--green); }
+.needle-hub { fill: var(--accent); }
+
+.cents-readout {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 600;
+}
+.cents-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  padding: 0 6px;
+}
+
+.readout {
+  display: flex;
+  align-items: stretch;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.readout-block { flex: 1; padding: 16px 12px; text-align: center; }
+.readout-divider { width: 1px; background: var(--border); }
+.readout-tag {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.readout-main {
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 40px;
+}
+.readout-main.swara { color: var(--accent); }
+.readout-sub { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.readout-main sub { font-size: 0.5em; font-weight: 600; }
+
+.status {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 16px;
+}
+.status.error { color: var(--red); }
+
+/* ---- Phase 2: file analyzer ---- */
+.analyzer {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.analyzer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.analyzer-title { margin: 0; font-size: 15px; font-weight: 600; }
+.file-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.file-btn:hover { filter: brightness(1.08); border-color: var(--accent); }
+.analyze-status { font-size: 12px; color: var(--muted); min-height: 16px; }
+.analyze-status.error { color: var(--red); }
+
+.results { margin-top: 14px; }
+
+.contour-wrap {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.contour-svg { width: 100%; height: 140px; display: block; }
+.contour-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.contour-grid { stroke: var(--border); stroke-width: 1; }
+.playhead { stroke: var(--text); stroke-width: 1.5; opacity: 0.7; }
+
+.playback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.play-btn {
+  background: var(--accent);
+  color: #1a1206;
+  border: none;
+  border-radius: 9px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+}
+.play-btn:active { transform: translateY(1px); }
+.play-time { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.note-count { font-size: 12px; color: var(--muted); margin-left: auto; }
+.midi-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: filter 0.15s ease, border-color 0.15s ease;
+}
+.midi-btn:hover { border-color: var(--accent); filter: brightness(1.06); }
+.midi-btn:active { transform: translateY(1px); }
+
+.export-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  margin: 2px 0 12px;
+}
+.export-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.export-opt.disabled { opacity: 0.45; }
+.mini-select,
+.mini-input {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font);
+}
+.mini-input { width: 64px; }
+.mini-select:focus,
+.mini-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.export-opt .unit { font-size: 12px; }
+
+.mini-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: filter 0.15s ease, border-color 0.15s ease;
+}
+.mini-btn:hover { border-color: var(--accent); filter: brightness(1.06); }
+.mini-btn:active { transform: translateY(1px); }
+
+.raga-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0 12px;
+}
+.raga-summary { font-size: 12px; color: var(--muted); }
+.raga-summary.match { color: var(--green); }
+.raga-summary.mismatch { color: var(--accent); }
+
+.note-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scrollbar-width: thin;
+}
+.note-chip {
+  flex: 0 0 auto;
+  min-width: 56px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.note-chip:hover { border-color: var(--accent); }
+.note-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.note-chip.foreign {
+  opacity: 0.5;
+  border-style: dashed;
+}
+.note-chip.foreign .chip-swara { color: var(--red); }
+.note-chip.offdir {
+  border-style: dashed;
+  border-color: var(--accent);
+}
+.note-chip.offdir .chip-swara { color: var(--accent); }
+.note-chip.offdir::after {
+  content: "↕";
+  display: block;
+  font-size: 10px;
+  color: var(--accent);
+  line-height: 1;
+  margin-top: 2px;
+}
+.chip-swara { font-size: 18px; font-weight: 700; color: var(--accent); line-height: 1; }
+.chip-swara sub { font-size: 0.55em; }
+.chip-western { font-size: 12px; color: var(--text); margin-top: 3px; }
+.chip-dur { font-size: 10px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1 class="title">स्वर <span class="title-en">Swar</span></h1>
+      <p class="subtitle">Live pitch · Western + Indian notation</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" type="button" data-tab="tuner">Tuner</button>
+      <button class="tab" type="button" data-tab="trainer">Ear&nbsp;Trainer</button>
+    </nav>
+
+    <section class="controls">
+      <label class="control">
+        <span class="control-label">Sa (base / shruti)</span>
+        <select id="saSelect" class="select"></select>
+      </label>
+      <label class="control">
+        <span class="control-label">Notation</span>
+        <select id="notationSelect" class="select">
+          <option value="komal">Komal / tivra</option>
+          <option value="numbered">Numbered (Re₁ Re₂)</option>
+        </select>
+      </label>
+    </section>
+
+    <div class="panel" id="panel-tuner">
+    <section class="controls">
+      <button id="micBtn" class="mic-btn" type="button">
+        <span class="mic-dot"></span>
+        <span id="micLabel">Start mic</span>
+      </button>
+    </section>
+
+    <section class="tuner">
+      <div class="dial">
+        <svg viewBox="0 0 300 180" class="dial-svg" aria-hidden="true">
+          <!-- arc -->
+          <path d="M 30 165 A 135 135 0 0 1 270 165" class="dial-arc" />
+          <!-- tick marks generated at runtime -->
+          <g id="ticks"></g>
+          <!-- needle -->
+          <line id="needle" x1="150" y1="165" x2="150" y2="45" class="needle" />
+          <circle cx="150" cy="165" r="7" class="needle-hub" />
+        </svg>
+        <div id="centsReadout" class="cents-readout">–</div>
+        <div class="cents-scale"><span>♭ −50</span><span>0</span><span>+50 ♯</span></div>
+      </div>
+
+      <div class="readout">
+        <div class="readout-block">
+          <div class="readout-tag">Indian</div>
+          <div id="swaraName" class="readout-main swara">—</div>
+          <div id="swaraOctave" class="readout-sub">—</div>
+        </div>
+        <div class="readout-divider"></div>
+        <div class="readout-block">
+          <div class="readout-tag">Western</div>
+          <div id="westernName" class="readout-main western">—</div>
+          <div id="freqReadout" class="readout-sub">— Hz</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="status">
+      <span id="status">Pick your Sa, then start the mic. Allow microphone access when prompted.</span>
+    </footer>
+
+    <section class="analyzer">
+      <div class="analyzer-head">
+        <h2 class="analyzer-title">Analyze a recording</h2>
+        <button id="fileBtn" class="file-btn" type="button">Load audio file</button>
+        <input id="fileInput" type="file" accept="audio/*" hidden />
+      </div>
+      <div id="analyzeStatus" class="analyze-status">
+        Load a vocal recording to detect its note sequence (relative to Sa above).
+      </div>
+
+      <div id="results" class="results" hidden>
+        <div class="contour-wrap">
+          <svg id="contour" viewBox="0 0 600 160" preserveAspectRatio="none" class="contour-svg" aria-hidden="true"></svg>
+        </div>
+        <div class="playback">
+          <button id="playBtn" class="play-btn" type="button">▶ Play</button>
+          <span id="playTime" class="play-time">0:00 / 0:00</span>
+          <span id="noteCount" class="note-count"></span>
+          <button id="midiBtn" class="midi-btn" type="button">⬇ MIDI</button>
+          <button id="csvBtn" class="midi-btn" type="button">⬇ CSV</button>
+        </div>
+
+        <div class="raga-row">
+          <button id="detectSaBtn" class="mini-btn" type="button">Re-detect Sa</button>
+          <span id="saSuggest" class="raga-summary"></span>
+        </div>
+
+        <div class="raga-row">
+          <label class="export-opt">
+            <span>Raga</span>
+            <select id="ragaSelect" class="mini-select"></select>
+          </label>
+          <button id="detectRagaBtn" class="mini-btn" type="button">Auto-detect</button>
+          <span id="ragaSummary" class="raga-summary"></span>
+        </div>
+        <div class="export-opts">
+          <label class="export-opt">
+            <span>Quantize</span>
+            <select id="quantSelect" class="mini-select">
+              <option value="0">Off (exact)</option>
+              <option value="4">1/4 note</option>
+              <option value="8">1/8 note</option>
+              <option value="16">1/16 note</option>
+            </select>
+          </label>
+          <label class="export-opt" id="bpmField">
+            <span>Tempo</span>
+            <input id="bpmInput" class="mini-input" type="number" min="30" max="300" step="1" value="120" />
+            <span class="unit">BPM</span>
+          </label>
+          <button id="autoTempoBtn" class="mini-btn" type="button">Auto</button>
+        </div>
+
+        <div id="noteStrip" class="note-strip"></div>
+        <audio id="audioEl"></audio>
+      </div>
+    </section>
+    </div><!-- /panel-tuner -->
+
+    <div class="panel trainer" id="panel-trainer" hidden>
+      <div class="tr-grid">
+        <aside class="settings">
+          <section class="group">
+            <label class="checkline">
+              <input type="checkbox" id="sa-at-c-toggle" checked />
+              <span>Keyboard: C&nbsp;key = Sa</span>
+            </label>
+          </section>
+
+          <section class="group">
+            <label class="lbl" for="timbre-select">Instrument</label>
+            <select id="timbre-select">
+              <option value="synth">Synth tone — offline</option>
+              <option value="piano">Piano</option>
+              <option value="flute">Flute</option>
+              <option value="accordion">Accordion</option>
+              <option value="harmonica">Harmonica</option>
+            </select>
+            <div class="inst-status" id="inst-status"></div>
+          </section>
+
+          <section class="group">
+            <div class="lbl">Reference phrase</div>
+            <div id="refchips" class="chips"></div>
+          </section>
+
+          <section class="group bordered">
+            <div class="lbl">Difficulty</div>
+            <div class="slider-row">
+              <span>Note length</span><span class="val" id="len-val">0.8s</span>
+            </div>
+            <input type="range" id="len-slider" min="300" max="1500" step="50" value="800" />
+            <div class="slider-row">
+              <span>Gap</span><span class="val" id="gap-val">0.4s</span>
+            </div>
+            <input type="range" id="gap-slider" min="100" max="900" step="50" value="400" />
+            <div class="slider-row">
+              <span>Sequence length</span><span class="val" id="seq-val">1 note</span>
+            </div>
+            <input type="range" id="seq-slider" min="1" max="5" step="1" value="1" />
+          </section>
+
+          <section class="group bordered">
+            <label class="checkline">
+              <input type="checkbox" id="speak-toggle" />
+              <span>Speak the answer</span>
+            </label>
+            <div class="slider-row">
+              <span>Speak after</span><span class="val" id="speak-delay-val">3.0s</span>
+            </div>
+            <input type="range" id="speak-delay-slider" min="0" max="10" step="0.5" value="3" />
+            <div class="lbl" style="margin-top:10px;">Voice style</div>
+            <select id="voice-style-select">
+              <option value="phonetic" selected>Phonetic — “Sah, Ray, Gah”</option>
+              <option value="plain">Plain — “Sa, Re, Ga”</option>
+            </select>
+            <button id="voice-preview-btn" type="button" style="margin-top:8px; width:100%; padding:7px 10px; font-size:13px;">
+              🔊 Preview voice
+            </button>
+            <div class="inst-status" id="voice-status"></div>
+          </section>
+
+          <section class="group bordered">
+            <label class="checkline">
+              <input type="checkbox" id="drone-toggle" />
+              <span>Tanpura drone on Sa</span>
+            </label>
+            <div class="lbl" style="margin-top:10px;">Tuning</div>
+            <select id="tuning-select">
+              <option value="Pa">Pa · Sa · Sa · Sa</option>
+              <option value="Ma">Ma · Sa · Sa · Sa</option>
+              <option value="Ni">Ni · Sa · Sa · Sa</option>
+              <option value="Sa">Sa · Sa · Sa · Sa</option>
+              <option value="custom">Custom</option>
+            </select>
+            <div class="lbl" style="margin-top:10px;">Strings</div>
+            <div id="strings" class="strings"></div>
+            <div class="slider-row">
+              <span>Drone volume</span><span class="val" id="drone-vol-val">10%</span>
+            </div>
+            <input type="range" id="drone-vol-slider" min="0" max="100" step="5" value="10" />
+            <div class="slider-row">
+              <span>Drone timbre</span><span class="val" id="drone-tone-val">mellow</span>
+            </div>
+            <input type="range" id="drone-tone-slider" min="0" max="100" step="5" value="30" />
+          </section>
+        </aside>
+
+        <section class="stage">
+          <div class="card answer-card">
+            <div class="lbl">Notes in test</div>
+            <div id="pool" class="chips" style="margin-bottom:16px;"></div>
+
+            <div class="prompt-row">
+              <span class="phrase" id="phrase">Sa · Pa · Sa · <span class="q">?</span></span>
+              <span class="hint">Your guess</span>
+            </div>
+            <div id="answers" class="answers"></div>
+            <div class="guess-row" id="guess-row">
+              <span class="guess-label">Guess:</span>
+              <span id="guess-display" class="guess-display">—</span>
+              <button id="undo-btn" disabled>Undo</button>
+            </div>
+            <div id="feedback" class="feedback"></div>
+
+            <div class="play-box">
+              <div class="controls-row">
+                <button id="play-btn" class="primary">▶ Play</button>
+                <button id="replay-btn" disabled>↻ Replay</button>
+                <label class="checkline">
+                  <input type="checkbox" id="autonext-toggle" />
+                  <span>Auto-play</span>
+                </label>
+                <span id="score" class="score">Streak 0 · 0/0 correct</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+(function () {
+"use strict";
+
+// ===== notes.js =====
+// Note & swara mapping utilities.
+// Western notation is absolute (fixed A440 grid).
+// Indian notation is relative to a chosen Sa (base / shruti).
+
+const WESTERN_NAMES = [
+  "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
+
+// Simple 12-swara (numbered) scheme. Rendered with <sub> for the numeral.
+// index = semitones above Sa (mod 12)
+const SWARA_NAMES = [
+  { base: "Sa", num: "" },
+  { base: "Re", num: "1" },
+  { base: "Re", num: "2" },
+  { base: "Ga", num: "1" },
+  { base: "Ga", num: "2" },
+  { base: "Ma", num: "1" },
+  { base: "Ma", num: "2" },
+  { base: "Pa", num: "" },
+  { base: "Dha", num: "1" },
+  { base: "Dha", num: "2" },
+  { base: "Ni", num: "1" },
+  { base: "Ni", num: "2" },
+];
+
+// Komal/tivra scheme (lowercase = komal, prime = tivra Ma), parallel to SWARA_NAMES.
+const SWARA_KOMAL = [
+  "Sa", "re", "Re", "ga", "Ga", "Ma", "Ma'", "Pa", "dha", "Dha", "ni", "Ni",
+];
+
+// App-wide swara notation, switchable from the header toggle.
+let NOTATION = "komal"; // "komal" | "numbered"
+function setNotation(mode) { NOTATION = mode === "numbered" ? "numbered" : "komal"; }
+function getNotation() { return NOTATION; }
+
+// HTML label for a pitch-class index (0-11), honoring the current notation.
+function swaraHtml(idx) {
+  idx = ((idx % 12) + 12) % 12;
+  if (NOTATION === "numbered") {
+    const s = SWARA_NAMES[idx];
+    return s.num ? `${s.base}<sub>${s.num}</sub>` : s.base;
+  }
+  return SWARA_KOMAL[idx];
+}
+// Plain-text label for a pitch-class index (0-11).
+function swaraText(idx) {
+  idx = ((idx % 12) + 12) % 12;
+  if (NOTATION === "numbered") {
+    const s = SWARA_NAMES[idx];
+    return s.base + s.num;
+  }
+  return SWARA_KOMAL[idx];
+}
+
+const A4 = 440;
+const A4_MIDI = 69;
+
+// Frequency (Hz) -> MIDI note number (float).
+function freqToMidi(freq) {
+  return 12 * Math.log2(freq / A4) + A4_MIDI;
+}
+
+function midiToFreq(midi) {
+  return A4 * Math.pow(2, (midi - A4_MIDI) / 12);
+}
+
+// Western note name + octave (scientific pitch notation) + cents from that note.
+function toWestern(freq) {
+  const midiFloat = freqToMidi(freq);
+  const midi = Math.round(midiFloat);
+  const cents = Math.round((midiFloat - midi) * 100);
+  const name = WESTERN_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1; // MIDI 60 = C4
+  return { midi, name, octave, cents, label: `${name}${octave}` };
+}
+
+// Build the list of selectable Sa options (MIDI note + label) for a dropdown.
+function saOptions(minMidi = 36, maxMidi = 72) {
+  const opts = [];
+  for (let m = minMidi; m <= maxMidi; m++) {
+    const name = WESTERN_NAMES[((m % 12) + 12) % 12];
+    const octave = Math.floor(m / 12) - 1;
+    opts.push({ midi: m, label: `${name}${octave}` });
+  }
+  return opts;
+}
+
+// Octave label relative to Sa: 0 = madhya (middle), -1 = mandra (lower), +1 = tara (upper).
+function octaveLabel(rel) {
+  if (rel === 0) return "madhya";
+  if (rel === -1) return "mandra";
+  if (rel === 1) return "tara";
+  if (rel < -1) return `mandra ${-rel}`;
+  return `tara ${rel}`;
+}
+
+// Western label directly from a (rounded) MIDI note number.
+function midiToWestern(midi) {
+  const name = WESTERN_NAMES[((midi % 12) + 12) % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return { name, octave, label: `${name}${octave}` };
+}
+
+// Indian swara directly from a MIDI note number, relative to Sa (MIDI).
+function midiToSwara(midi, saMidi) {
+  const semis = midi - saMidi;
+  const idx = ((semis % 12) + 12) % 12;
+  const octaveRel = Math.floor(semis / 12);
+  const swara = SWARA_NAMES[idx];
+  return {
+    idx,
+    base: swara.base,
+    num: swara.num,
+    octaveRel,
+    octaveName: octaveLabel(octaveRel),
+    label: swara.base + swara.num,
+  };
+}
+
+// Indian swara relative to a Sa given as a MIDI note number.
+function toSwara(freq, saMidi) {
+  const midiFloat = freqToMidi(freq);
+  const saFreq = midiToFreq(saMidi);
+  const semisFloat = 12 * Math.log2(freq / saFreq);
+  const semis = Math.round(semisFloat);
+  const cents = Math.round((semisFloat - semis) * 100);
+  const idx = ((semis % 12) + 12) % 12;
+  const octaveRel = Math.floor(semis / 12);
+  const swara = SWARA_NAMES[idx];
+  return {
+    idx,
+    base: swara.base,
+    num: swara.num,
+    cents,
+    octaveRel,
+    octaveName: octaveLabel(octaveRel),
+    label: swara.base + swara.num,
+  };
+}
+
+// ===== pitch.js =====
+// Monophonic pitch detection. Two detectors are provided:
+//   - detectPitch:    autocorrelation (ACF), simple and fast
+//   - detectPitchYin: YIN, more robust to octave errors on real voices
+// Both return frequency in Hz, or -1 when too weak / no clear pitch.
+
+const MIN_FREQ = 70;    // ~ lowest useful vocal / bass note
+const MAX_FREQ = 1100;  // comfortably above soprano range
+const RMS_THRESHOLD = 0.006; // silence gate (low enough for soft humming)
+
+// YIN pitch detector. `threshold` is the absolute CMNDF threshold (lower = more
+// selective; 0.10–0.15 works well for voice).
+function detectPitchYin(buffer, sampleRate, threshold = 0.12) {
+  const size = buffer.length;
+  const halfSize = size >> 1;
+
+  // 1. Silence gate via RMS.
+  let rms = 0;
+  for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
+  rms = Math.sqrt(rms / size);
+  if (rms < RMS_THRESHOLD) return -1;
+
+  const minTau = Math.max(2, Math.floor(sampleRate / MAX_FREQ));
+  const maxTau = Math.min(halfSize - 1, Math.floor(sampleRate / MIN_FREQ));
+  const probe = Math.min(halfSize, maxTau + 2);
+
+  // 2. Difference function d(tau).
+  const yin = new Float32Array(probe);
+  for (let tau = 1; tau < probe; tau++) {
+    let sum = 0;
+    for (let i = 0; i < halfSize; i++) {
+      const delta = buffer[i] - buffer[i + tau];
+      sum += delta * delta;
+    }
+    yin[tau] = sum;
+  }
+
+  // 3. Cumulative mean normalized difference d'(tau).
+  yin[0] = 1;
+  let running = 0;
+  for (let tau = 1; tau < probe; tau++) {
+    running += yin[tau];
+    yin[tau] = running > 0 ? (yin[tau] * tau) / running : 1;
+  }
+
+  // 4. Absolute threshold: first dip below threshold that is a local minimum.
+  let tau = -1;
+  for (let t = minTau; t <= maxTau; t++) {
+    if (yin[t] < threshold) {
+      while (t + 1 <= maxTau && yin[t + 1] < yin[t]) t++;
+      tau = t;
+      break;
+    }
+  }
+  if (tau === -1) {
+    // Nothing crossed the threshold — take the global minimum, but reject it
+    // if it's too shallow (unvoiced / noisy).
+    let minVal = Infinity;
+    for (let t = minTau; t <= maxTau; t++) {
+      if (yin[t] < minVal) { minVal = yin[t]; tau = t; }
+    }
+    if (tau === -1 || minVal > 0.5) return -1;
+  }
+
+  // 5. Parabolic interpolation around the valley for sub-sample precision.
+  let betterTau = tau;
+  if (tau > minTau && tau + 1 <= maxTau) {
+    const s0 = yin[tau - 1], s1 = yin[tau], s2 = yin[tau + 1];
+    const denom = s0 - 2 * s1 + s2;
+    if (denom !== 0) betterTau = tau + (0.5 * (s0 - s2)) / denom;
+  }
+  return sampleRate / betterTau;
+}
+
+function detectPitch(buffer, sampleRate) {
+  const size = buffer.length;
+
+  // 1. Silence gate via RMS.
+  let rms = 0;
+  for (let i = 0; i < size; i++) rms += buffer[i] * buffer[i];
+  rms = Math.sqrt(rms / size);
+  if (rms < RMS_THRESHOLD) return -1;
+
+  const maxLag = Math.min(size - 1, Math.floor(sampleRate / MIN_FREQ));
+  const minLag = Math.max(1, Math.floor(sampleRate / MAX_FREQ));
+
+  // 2. Raw (unnormalized) autocorrelation. Because it is NOT divided by the
+  // overlap length, correlation peaks at multiples of the true period decay
+  // with lag, so the first strong peak corresponds to the fundamental.
+  const c = new Float32Array(maxLag + 2);
+  for (let lag = 0; lag <= maxLag + 1; lag++) {
+    let sum = 0;
+    for (let i = 0; i < size - lag; i++) sum += buffer[i] * buffer[i + lag];
+    c[lag] = sum;
+  }
+
+  // 3. Walk down from the zero-lag peak into the first valley, so we don't
+  // lock onto tiny lags (i.e. octave-too-high errors).
+  let d = 0;
+  while (d < maxLag && c[d] > c[d + 1]) d++;
+
+  // 4. From there, take the highest peak within the valid lag range.
+  let bestLag = -1;
+  let bestCorr = 0;
+  for (let lag = Math.max(d, minLag); lag <= maxLag; lag++) {
+    if (c[lag] > bestCorr) {
+      bestCorr = c[lag];
+      bestLag = lag;
+    }
+  }
+
+  if (bestLag <= 0 || bestCorr <= 0) return -1;
+
+  // 5. Parabolic interpolation around the peak for sub-sample precision.
+  const y0 = c[bestLag - 1];
+  const y1 = c[bestLag];
+  const y2 = c[bestLag + 1];
+  const denom = y0 - 2 * y1 + y2;
+  const refined = denom === 0 ? bestLag : bestLag - (0.5 * (y2 - y0)) / denom;
+  return sampleRate / refined;
+}
+
+// Smooth noisy frequency readings with a small median-ish buffer.
+class PitchSmoother {
+  constructor(size = 5) {
+    this.size = size;
+    this.buf = [];
+  }
+  push(freq) {
+    if (freq <= 0) {
+      this.buf = [];
+      return -1;
+    }
+    this.buf.push(freq);
+    if (this.buf.length > this.size) this.buf.shift();
+    const sorted = [...this.buf].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  }
+  reset() {
+    this.buf = [];
+  }
+}
+
+// ===== midi.js =====
+// Minimal Standard MIDI File (SMF, format 0) writer for the detected note
+// sequence. Each note becomes a NoteOn/NoteOff pair on channel 0.
+
+const PPQ = 480;        // ticks per quarter note
+const VELOCITY = 90;
+
+// Variable-length quantity (used for delta times).
+function varLen(value) {
+  const bytes = [value & 0x7f];
+  value >>= 7;
+  while (value > 0) {
+    bytes.unshift((value & 0x7f) | 0x80);
+    value >>= 7;
+  }
+  return bytes;
+}
+
+function str(s) {
+  return [...s].map((c) => c.charCodeAt(0));
+}
+
+function u32(n) {
+  return [(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+// notes: [{ midi, startT, endT }]
+// opts: { bpm=120, quantizeDiv=0 }  quantizeDiv is 0 (off) or a note value
+//        (4 = 1/4 note, 8 = 1/8, 16 = 1/16); snaps note times to that grid.
+function notesToMidi(notes, name = "Swar", opts = {}) {
+  const bpm = opts.bpm || 120;
+  const quantizeDiv = opts.quantizeDiv || 0;
+  const secToTicks = (sec) => (sec * PPQ * bpm) / 60;
+  const gridTicks = quantizeDiv > 0 ? (PPQ * 4) / quantizeDiv : 0;
+  const snap = (tick) =>
+    gridTicks > 0 ? Math.round(tick / gridTicks) * gridTicks : Math.round(tick);
+
+  // Build absolute-time events; NoteOff sorts before NoteOn at the same tick.
+  const events = [];
+  for (const n of notes) {
+    let start = snap(secToTicks(n.startT));
+    let end = snap(secToTicks(n.endT));
+    // Quantizing can collapse a short note to zero length — give it one grid
+    // unit (or 1 tick when off) so it survives.
+    if (end <= start) end = start + (gridTicks > 0 ? gridTicks : 1);
+    events.push({ tick: start, kind: 1, note: n.midi });
+    events.push({ tick: end, kind: 0, note: n.midi });
+  }
+  events.sort((a, b) => a.tick - b.tick || a.kind - b.kind);
+
+  const track = [];
+  // Track name meta.
+  const nameBytes = str(name);
+  track.push(0x00, 0xff, 0x03, nameBytes.length, ...nameBytes);
+  // Tempo meta (FF 51 03 tttttt).
+  const usPerQuarter = Math.round(60000000 / bpm);
+  track.push(
+    0x00, 0xff, 0x51, 0x03,
+    (usPerQuarter >> 16) & 0xff,
+    (usPerQuarter >> 8) & 0xff,
+    usPerQuarter & 0xff
+  );
+
+  let prev = 0;
+  for (const e of events) {
+    const delta = e.tick - prev;
+    prev = e.tick;
+    track.push(...varLen(delta));
+    if (e.kind === 1) track.push(0x90, e.note & 0x7f, VELOCITY);
+    else track.push(0x80, e.note & 0x7f, 0x00);
+  }
+  // End of track.
+  track.push(0x00, 0xff, 0x2f, 0x00);
+
+  const header = [
+    ...str("MThd"), ...u32(6),
+    0x00, 0x00,          // format 0
+    0x00, 0x01,          // one track
+    (PPQ >> 8) & 0xff, PPQ & 0xff,
+  ];
+  const trackChunk = [...str("MTrk"), ...u32(track.length), ...track];
+
+  return new Uint8Array([...header, ...trackChunk]);
+}
+
+// ===== raga.js =====
+// Raga-aware labeling. Each raga has a swara `set` (all positions it uses,
+// semitones above Sa) plus `aroha` (allowed ascending) and `avaroha` (allowed
+// descending) positions. For symmetric ragas these are omitted and default to
+// `set`; a few janya ragas (e.g. Bilahari, Arabhi) genuinely differ up vs down,
+// which is what the grammar-aware matching keys on. This is directional-scale
+// grammar, not full pakad/chalan phrase grammar.
+
+const RAGAS = [
+  { id: "shankarabharanam", name: "Shankarabharanam / Bilawal", set: [0, 2, 4, 5, 7, 9, 11] },
+  { id: "kalyani", name: "Kalyani / Yaman", set: [0, 2, 4, 6, 7, 9, 11] },
+  { id: "kharaharapriya", name: "Kharaharapriya / Kafi", set: [0, 2, 3, 5, 7, 9, 10] },
+  { id: "harikambhoji", name: "Harikambhoji / Khamaj", set: [0, 2, 4, 5, 7, 9, 10] },
+  { id: "natabhairavi", name: "Natabhairavi / Asavari", set: [0, 2, 3, 5, 7, 8, 10] },
+  { id: "mayamalavagowla", name: "Mayamalavagowla / Bhairav", set: [0, 1, 4, 5, 7, 8, 11] },
+  { id: "todi", name: "Hanumatodi / Bhairavi", set: [0, 1, 3, 5, 7, 8, 10] },
+  { id: "charukesi", name: "Charukesi", set: [0, 2, 4, 5, 7, 8, 10] },
+  { id: "mohanam", name: "Mohanam / Bhoopali", set: [0, 2, 4, 7, 9] },
+  { id: "hamsadhwani", name: "Hamsadhwani", set: [0, 2, 4, 7, 11] },
+  { id: "hindolam", name: "Hindolam / Malkauns", set: [0, 3, 5, 8, 10] },
+  { id: "abhogi", name: "Abhogi", set: [0, 2, 3, 5, 9] },
+  // Asymmetric janyas — aroha omits notes the avaroha restores.
+  {
+    id: "bilahari", name: "Bilahari",
+    set: [0, 2, 4, 5, 7, 9, 11],
+    aroha: [0, 2, 4, 7, 9],                 // S R G P D (omit M, N ascending)
+    avaroha: [0, 2, 4, 5, 7, 9, 11],        // S N D P M G R (full descending)
+  },
+  {
+    id: "arabhi", name: "Arabhi",
+    set: [0, 2, 4, 5, 7, 9, 11],
+    aroha: [0, 2, 5, 7, 9],                 // S R M P D (omit G, N ascending)
+    avaroha: [0, 2, 4, 5, 7, 9, 11],        // S N D P M G R (full descending)
+  },
+];
+
+function ragaById(id) {
+  return RAGAS.find((r) => r.id === id) || null;
+}
+
+const posOf = (midi, saMidi) => (((midi - saMidi) % 12) + 12) % 12;
+
+function isInRaga(midi, saMidi, raga) {
+  return raga.set.includes(posOf(midi, saMidi));
+}
+
+// Distinct swara positions present in the detected notes.
+function detectedPositions(notes, saMidi) {
+  const s = new Set();
+  for (const n of notes) s.add(posOf(n.midi, saMidi));
+  return [...s].sort((a, b) => a - b);
+}
+
+// Rank ragas by fit: strongly penalize notes outside the raga, then reward how
+// much of the raga's swara set actually appears.
+function rankRagas(notes, saMidi) {
+  const present = detectedPositions(notes, saMidi);
+  return RAGAS.map((raga) => {
+    const setS = new Set(raga.set);
+    const foreign = present.filter((p) => !setS.has(p)).length;
+    const covered = raga.set.filter((p) => present.includes(p)).length;
+    const coverage = covered / raga.set.length;
+    return {
+      raga,
+      foreign,
+      coverage,
+      score: -foreign * 10 + coverage,
+    };
+  }).sort((a, b) => b.score - a.score || a.foreign - b.foreign);
+}
+
+// --- Grammar-aware (directional) matching ---
+
+const aroOf = (raga) => new Set(raga.aroha ?? raga.set);
+const avaOf = (raga) => new Set(raga.avaroha ?? raga.set);
+
+// Per-note status against a raga's aroha/avaroha:
+//   "ok"       — in the scale and used in an allowed direction
+//   "offdir"   — in the scale but used in the wrong direction (grammar breach)
+//   "foreign"  — not in the raga at all
+// Direction at a note comes from its neighbours (rising vs falling melody).
+function grammarStatuses(notes, saMidi, raga) {
+  const setAll = new Set(raga.set);
+  const aro = aroOf(raga);
+  const ava = avaOf(raga);
+  return notes.map((n, i) => {
+    const pos = posOf(n.midi, saMidi);
+    if (!setAll.has(pos)) return "foreign";
+    let dir = i > 0 ? Math.sign(n.midi - notes[i - 1].midi) : 0;
+    if (dir === 0 && i < notes.length - 1) {
+      dir = Math.sign(notes[i + 1].midi - n.midi); // flat: borrow next note's direction
+    }
+    let ok;
+    if (dir > 0) ok = aro.has(pos);
+    else if (dir < 0) ok = ava.has(pos);
+    else ok = aro.has(pos) || ava.has(pos);
+    return ok ? "ok" : "offdir";
+  });
+}
+
+// Rank ragas using directional grammar: foreign notes hurt most, then
+// wrong-direction notes, then reward coverage of the swara set.
+function rankRagasGrammar(notes, saMidi) {
+  const present = detectedPositions(notes, saMidi);
+  return RAGAS.map((raga) => {
+    const st = grammarStatuses(notes, saMidi, raga);
+    const foreign = st.filter((s) => s === "foreign").length;
+    const offdir = st.filter((s) => s === "offdir").length;
+    const covered = raga.set.filter((p) => present.includes(p)).length;
+    const coverage = covered / raga.set.length;
+    return {
+      raga,
+      foreign,
+      offdir,
+      coverage,
+      score: -foreign * 10 - offdir * 3 + coverage,
+    };
+  }).sort(
+    (a, b) =>
+      b.score - a.score ||
+      a.foreign + a.offdir - (b.foreign + b.offdir)
+  );
+}
+
+// ===== analyze.js =====
+// Offline analysis of an audio file into a monophonic note sequence.
+// Reuses the same autocorrelation detector as the live tuner, run frame by
+// frame across the whole recording.
+
+
+const RATE = 16000;     // vocals sit well under 1 kHz; downsampling speeds analysis
+const FRAME = 1024;     // ~64 ms window
+const HOP = 512;        // ~32 ms step
+const SMOOTH_WIN = 5;   // median window (frames) to kill single-frame octave errors
+const MERGE_GAP = 0.08; // s — bridge tiny gaps between same-note runs
+const MIN_NOTE = 0.07;  // s — drop notes shorter than this (transients/noise)
+
+// Resample an AudioBuffer to mono at RATE using an OfflineAudioContext.
+async function resampleMono(audioBuffer) {
+  const OfflineCtx =
+    window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const length = Math.ceil(audioBuffer.duration * RATE);
+  const offline = new OfflineCtx(1, length, RATE);
+  const src = offline.createBufferSource();
+  src.buffer = audioBuffer;
+  src.connect(offline.destination);
+  src.start();
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0);
+}
+
+function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+// Median-smooth the per-frame MIDI numbers, ignoring unvoiced (null) frames.
+function smoothMidi(frames) {
+  const half = Math.floor(SMOOTH_WIN / 2);
+  const raw = frames.map((f) => f.midi);
+  for (let i = 0; i < frames.length; i++) {
+    if (raw[i] == null) continue;
+    const window = [];
+    for (let j = i - half; j <= i + half; j++) {
+      if (j >= 0 && j < raw.length && raw[j] != null) window.push(raw[j]);
+    }
+    frames[i].midi = Math.round(median(window));
+  }
+}
+
+// Group frames of equal MIDI into note events; bridge short gaps; drop shorts.
+function segment(frames) {
+  const step = HOP / RATE;
+  const runs = [];
+  let cur = null;
+  for (const fr of frames) {
+    if (fr.midi == null) {
+      if (cur) { runs.push(cur); cur = null; }
+      continue;
+    }
+    if (cur && cur.midi === fr.midi) {
+      cur.endT = fr.t + step;
+      cur.freqs.push(fr.freq);
+    } else {
+      if (cur) runs.push(cur);
+      cur = { midi: fr.midi, startT: fr.t, endT: fr.t + step, freqs: [fr.freq] };
+    }
+  }
+  if (cur) runs.push(cur);
+
+  // Merge adjacent same-note runs separated by a short gap.
+  const merged = [];
+  for (const r of runs) {
+    const last = merged[merged.length - 1];
+    if (last && last.midi === r.midi && r.startT - last.endT < MERGE_GAP) {
+      last.endT = r.endT;
+      last.freqs.push(...r.freqs);
+    } else {
+      merged.push(r);
+    }
+  }
+
+  return merged
+    .filter((r) => r.endT - r.startT >= MIN_NOTE)
+    .map((r) => ({
+      midi: r.midi,
+      startT: r.startT,
+      endT: r.endT,
+      freq: median(r.freqs),
+    }));
+}
+
+// Estimate a tempo (BPM) from note onsets: take the median inter-onset
+// interval as a beat, then fold it into a musical range. Best-effort only.
+function estimateTempo(notes) {
+  if (!notes || notes.length < 2) return null;
+  const iois = [];
+  for (let i = 1; i < notes.length; i++) {
+    const d = notes[i].startT - notes[i - 1].startT;
+    if (d > 0.08) iois.push(d);
+  }
+  if (iois.length === 0) return null;
+  iois.sort((a, b) => a - b);
+  const beat = iois[Math.floor(iois.length / 2)];
+  let bpm = 60 / beat;
+  while (bpm < 60) bpm *= 2;
+  while (bpm > 180) bpm /= 2;
+  return Math.round(bpm);
+}
+
+// Best-effort Sa (tonic) detection from the note sequence. In Indian classical
+// music Sa is the most emphasized pitch (drone + resolution), so a duration-
+// weighted pitch-class histogram peaks at Sa. The Sa–Pa drone is disambiguated
+// by adding a share of the fifth's weight. Returns a MIDI note in [minMidi,
+// maxMidi], or null. Heuristic — the caller should let the user override.
+function detectSa(notes, minMidi = 36, maxMidi = 72) {
+  if (!notes || notes.length === 0) return null;
+
+  const weight = new Array(12).fill(0);            // duration per pitch class
+  const octDur = Array.from({ length: 12 }, () => ({})); // per-class, per-octave
+  for (const n of notes) {
+    const dur = n.endT - n.startT;
+    const pc = ((n.midi % 12) + 12) % 12;
+    weight[pc] += dur;
+    const oct = Math.floor(n.midi / 12);
+    octDur[pc][oct] = (octDur[pc][oct] || 0) + dur;
+  }
+
+  // Score each candidate by its own weight plus half of its fifth's weight.
+  let bestPc = 0;
+  let bestScore = -1;
+  for (let pc = 0; pc < 12; pc++) {
+    const score = weight[pc] + 0.5 * weight[(pc + 7) % 12];
+    if (score > bestScore) {
+      bestScore = score;
+      bestPc = pc;
+    }
+  }
+
+  // Octave = the register where this pitch class is sung most.
+  let bestOct = 4;
+  let bestOctDur = -1;
+  for (const [oct, dur] of Object.entries(octDur[bestPc])) {
+    if (dur > bestOctDur) {
+      bestOctDur = dur;
+      bestOct = parseInt(oct, 10);
+    }
+  }
+
+  let midi = bestOct * 12 + bestPc;
+  while (midi < minMidi) midi += 12;
+  while (midi > maxMidi) midi -= 12;
+  return midi;
+}
+
+// Full pipeline. onProgress(fraction 0..1) is called periodically.
+async function analyzeFile(audioBuffer, onProgress) {
+  const data = await resampleMono(audioBuffer);
+  const frames = [];
+  const last = Math.floor((data.length - FRAME) / HOP);
+
+  for (let k = 0; k <= last; k++) {
+    const start = k * HOP;
+    const frame = data.subarray(start, start + FRAME);
+    const freq = detectPitchYin(frame, RATE);
+    frames.push({
+      t: start / RATE,
+      freq,
+      midi: freq > 0 ? Math.round(freqToMidi(freq)) : null,
+    });
+    if (k % 128 === 0) {
+      onProgress && onProgress(k / last);
+      await new Promise((r) => setTimeout(r, 0)); // yield to keep UI responsive
+    }
+  }
+
+  smoothMidi(frames);
+  const notes = segment(frames);
+  onProgress && onProgress(1);
+  return { frames, notes, duration: audioBuffer.duration };
+}
+
+// ===== tabs.js =====
+// Tab switching between the Tuner and Ear Trainer views. Self-contained so it
+// doesn't touch the shared bundle scope.
+
+(function () {
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  const panels = {
+    tuner: document.getElementById("panel-tuner"),
+    trainer: document.getElementById("panel-trainer"),
+  };
+  const app = document.querySelector(".app");
+
+  function showTab(name) {
+    tabs.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+    Object.entries(panels).forEach(([k, el]) => {
+      if (el) el.hidden = k !== name;
+    });
+    // The trainer's keyboard wants more room than the tuner's narrow card.
+    if (app) app.classList.toggle("wide", name === "trainer");
+  }
+
+  tabs.forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+})();
+
+// ===== app.js =====
+const els = {
+  saSelect: document.getElementById("saSelect"),
+  notationSelect: document.getElementById("notationSelect"),
+  micBtn: document.getElementById("micBtn"),
+  micLabel: document.getElementById("micLabel"),
+  needle: document.getElementById("needle"),
+  cents: document.getElementById("centsReadout"),
+  ticks: document.getElementById("ticks"),
+  swaraName: document.getElementById("swaraName"),
+  swaraOctave: document.getElementById("swaraOctave"),
+  westernName: document.getElementById("westernName"),
+  freq: document.getElementById("freqReadout"),
+  status: document.getElementById("status"),
+  // analyzer
+  fileBtn: document.getElementById("fileBtn"),
+  fileInput: document.getElementById("fileInput"),
+  midiBtn: document.getElementById("midiBtn"),
+  csvBtn: document.getElementById("csvBtn"),
+  quantSelect: document.getElementById("quantSelect"),
+  bpmInput: document.getElementById("bpmInput"),
+  autoTempoBtn: document.getElementById("autoTempoBtn"),
+  ragaSelect: document.getElementById("ragaSelect"),
+  detectRagaBtn: document.getElementById("detectRagaBtn"),
+  ragaSummary: document.getElementById("ragaSummary"),
+  detectSaBtn: document.getElementById("detectSaBtn"),
+  saSuggest: document.getElementById("saSuggest"),
+  analyzeStatus: document.getElementById("analyzeStatus"),
+  results: document.getElementById("results"),
+  contour: document.getElementById("contour"),
+  playBtn: document.getElementById("playBtn"),
+  playTime: document.getElementById("playTime"),
+  noteCount: document.getElementById("noteCount"),
+  noteStrip: document.getElementById("noteStrip"),
+  audioEl: document.getElementById("audioEl"),
+};
+
+const IN_TUNE_CENTS = 5;
+const HOLD_MS = 500; // keep last note on screen through brief signal dropouts
+
+let audioCtx = null;
+let analyser = null;
+let mediaStream = null;
+let rafId = null;
+let listening = false;
+const smoother = new PitchSmoother(5);
+let lastVoiceTime = 0;
+
+// ---- Sa dropdown ----
+function populateSa() {
+  const opts = saOptions(36, 72); // C2 .. C5
+  for (const o of opts) {
+    const el = document.createElement("option");
+    el.value = String(o.midi);
+    el.textContent = o.label;
+    els.saSelect.appendChild(el);
+  }
+  els.saSelect.value = "48"; // C3 default
+}
+
+function saMidi() {
+  return parseInt(els.saSelect.value, 10);
+}
+
+// ---- Dial ticks ----
+// Needle sweeps -50c (left) .. +50c (right) mapped to -50deg .. +50deg.
+function centsToAngle(cents) {
+  const clamped = Math.max(-50, Math.min(50, cents));
+  return clamped; // 1 cent = 1 degree, +-50deg total
+}
+
+function buildTicks() {
+  const cx = 150, cy = 165, rOuter = 132, rInner = 118;
+  for (let c = -50; c <= 50; c += 10) {
+    const ang = (centsToAngle(c) - 90) * (Math.PI / 180);
+    const x1 = cx + rInner * Math.cos(ang);
+    const y1 = cy + rInner * Math.sin(ang);
+    const x2 = cx + rOuter * Math.cos(ang);
+    const y2 = cy + rOuter * Math.sin(ang);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1.toFixed(1));
+    line.setAttribute("y1", y1.toFixed(1));
+    line.setAttribute("x2", x2.toFixed(1));
+    line.setAttribute("y2", y2.toFixed(1));
+    line.setAttribute("class", c === 0 ? "tick major" : "tick");
+    els.ticks.appendChild(line);
+  }
+}
+
+// ---- UI update ----
+function renderSwara(sw) {
+  els.swaraName.innerHTML = swaraHtml(sw.idx);
+  els.swaraOctave.textContent = sw.octaveName;
+}
+
+function setNeedle(cents, inTune) {
+  els.needle.style.transform = `rotate(${centsToAngle(cents)}deg)`;
+  els.needle.classList.toggle("in-tune", inTune);
+}
+
+function showNote(freq) {
+  const west = toWestern(freq);
+  const sw = toSwara(freq, saMidi());
+  const cents = west.cents; // cents from nearest semitone (same for both systems)
+  const inTune = Math.abs(cents) <= IN_TUNE_CENTS;
+
+  renderSwara(sw);
+  els.westernName.textContent = west.label;
+  els.freq.textContent = `${freq.toFixed(1)} Hz`;
+  els.cents.textContent = `${cents > 0 ? "+" : ""}${cents}¢`;
+  setNeedle(cents, inTune);
+}
+
+function clearNote() {
+  els.swaraName.textContent = "—";
+  els.swaraOctave.textContent = "—";
+  els.westernName.textContent = "—";
+  els.freq.textContent = "— Hz";
+  els.cents.textContent = "–";
+  setNeedle(0, false);
+}
+
+// ---- Audio loop ----
+function tick() {
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+
+  const raw = detectPitchYin(buf, audioCtx.sampleRate);
+  const freq = smoother.push(raw);
+
+  const now = performance.now();
+  if (freq > 0) {
+    lastVoiceTime = now;
+    showNote(freq);
+  } else if (now - lastVoiceTime > HOLD_MS) {
+    clearNote();
+  }
+
+  rafId = requestAnimationFrame(tick);
+}
+
+async function startMic() {
+  // Mic access requires a secure context (https:// or localhost). Opening the
+  // page over plain http:// to a LAN IP (e.g. from a phone) leaves
+  // navigator.mediaDevices undefined, so fail with a clear message.
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus(
+      "Mic needs a secure page. Open this over https:// (or on localhost). " +
+        "A plain http:// address like " + location.host + " can't access the mic.",
+      true
+    );
+    return;
+  }
+  try {
+    setStatus("Requesting microphone…");
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Mobile browsers often start the context suspended.
+    if (audioCtx.state === "suspended") await audioCtx.resume();
+
+    const source = audioCtx.createMediaStreamSource(mediaStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+
+    // Keep the graph "pulling" on mobile: route analyser -> muted gain ->
+    // destination. Without a path to the output, mobile browsers stop feeding
+    // fresh samples to the analyser after ~1s. Zero gain = silent (no feedback).
+    const mute = audioCtx.createGain();
+    mute.gain.value = 0;
+    analyser.connect(mute);
+    mute.connect(audioCtx.destination);
+
+    // If the OS/browser suspends the context (e.g. interruption), resume it.
+    audioCtx.onstatechange = () => {
+      if (listening && audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+    };
+
+    listening = true;
+    els.micBtn.classList.add("listening");
+    els.micLabel.textContent = "Stop";
+    setStatus("Listening… sing or play a single note.");
+    smoother.reset();
+    tick();
+  } catch (err) {
+    setStatus(`Mic error: ${err.message}`, true);
+  }
+}
+
+function stopMic() {
+  listening = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  if (mediaStream) mediaStream.getTracks().forEach((t) => t.stop());
+  if (audioCtx) audioCtx.close();
+  audioCtx = analyser = mediaStream = null;
+  els.micBtn.classList.remove("listening");
+  els.micLabel.textContent = "Start mic";
+  setStatus("Stopped.");
+  clearNote();
+}
+
+function setStatus(msg, isError = false) {
+  els.status.textContent = msg;
+  els.status.classList.toggle("error", isError);
+}
+
+// ======================================================================
+//  Phase 2: file analysis -> note sequence
+// ======================================================================
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+let analysis = null;      // { frames, notes, duration }
+let decodeCtx = null;
+let objectUrl = null;
+let srcName = "swar";     // base name of the loaded file, for the MIDI download
+
+function fmtTime(sec) {
+  if (!isFinite(sec)) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function setAnalyzeStatus(msg, isError = false) {
+  els.analyzeStatus.textContent = msg;
+  els.analyzeStatus.classList.toggle("error", isError);
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  try {
+    setAnalyzeStatus(`Decoding “${file.name}”…`);
+    srcName = file.name.replace(/\.[^.]+$/, "") || "swar";
+    els.results.hidden = true;
+    const arrayBuf = await file.arrayBuffer();
+    decodeCtx =
+      decodeCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuffer = await decodeCtx.decodeAudioData(arrayBuf);
+
+    setAnalyzeStatus("Analyzing… 0%");
+    analysis = await analyzeFile(audioBuffer, (p) => {
+      setAnalyzeStatus(`Analyzing… ${Math.round(p * 100)}%`);
+    });
+
+    if (analysis.notes.length === 0) {
+      setAnalyzeStatus(
+        "No clear pitches found — try a cleaner monophonic vocal recording.",
+        true
+      );
+      return;
+    }
+
+    // Prepare playback source.
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    els.audioEl.src = objectUrl;
+
+    // Auto-detect Sa (tonic) for this clip and apply it, so the sequence is
+    // labeled relative to the recording's own Sa. User can still override via
+    // the Sa dropdown above.
+    const sa = detectSa(analysis.notes, 36, 72);
+    if (sa != null) {
+      els.saSelect.value = String(sa);
+      els.saSuggest.textContent = `Sa auto-detected: ${midiToWestern(sa).label} (change above to override)`;
+      els.saSuggest.className = "raga-summary match";
+    } else {
+      els.saSuggest.textContent = "";
+      els.saSuggest.className = "raga-summary";
+    }
+
+    // Prefill an estimated tempo; reset raga to None for the new recording.
+    const bpm = estimateTempo(analysis.notes);
+    if (bpm) els.bpmInput.value = String(bpm);
+    els.ragaSelect.value = "";
+
+    setAnalyzeStatus(
+      `Done — ${analysis.notes.length} notes detected.` +
+        (sa != null ? ` Sa ~${midiToWestern(sa).label}.` : "") +
+        (bpm ? ` Tempo ~${bpm} BPM.` : "")
+    );
+    els.results.hidden = false;
+    renderContour();
+    renderNotes();
+    els.noteCount.textContent = `${analysis.notes.length} notes`;
+    els.playTime.textContent = `0:00 / ${fmtTime(analysis.duration)}`;
+  } catch (err) {
+    setAnalyzeStatus(`Could not analyze file: ${err.message}`, true);
+  }
+}
+
+// Pitch contour over time, drawn in the SVG's 600x160 coordinate space.
+function renderContour() {
+  const W = 600, H = 160, PAD = 10;
+  els.contour.innerHTML = "";
+  const voiced = analysis.frames.filter((f) => f.freq > 0);
+  if (voiced.length === 0) return;
+
+  const midis = voiced.map((f) => freqToMidi(f.freq));
+  let lo = Math.min(...midis) - 1;
+  let hi = Math.max(...midis) + 1;
+  if (hi - lo < 4) { hi = lo + 4; } // avoid a squashed range
+
+  const x = (t) => PAD + (t / analysis.duration) * (W - 2 * PAD);
+  const y = (m) => H - PAD - ((m - lo) / (hi - lo)) * (H - 2 * PAD);
+
+  // Build a path, lifting the pen across unvoiced gaps.
+  let d = "";
+  let penDown = false;
+  for (const f of analysis.frames) {
+    if (f.freq > 0) {
+      const cmd = penDown ? "L" : "M";
+      d += `${cmd}${x(f.t).toFixed(1)} ${y(freqToMidi(f.freq)).toFixed(1)} `;
+      penDown = true;
+    } else {
+      penDown = false;
+    }
+  }
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", d.trim());
+  path.setAttribute("class", "contour-line");
+  path.setAttribute("vector-effect", "non-scaling-stroke");
+  els.contour.appendChild(path);
+
+  // Playhead.
+  const ph = document.createElementNS(SVG_NS, "line");
+  ph.setAttribute("id", "playhead");
+  ph.setAttribute("x1", PAD); ph.setAttribute("x2", PAD);
+  ph.setAttribute("y1", 0); ph.setAttribute("y2", H);
+  ph.setAttribute("class", "playhead");
+  ph.setAttribute("vector-effect", "non-scaling-stroke");
+  els.contour.appendChild(ph);
+}
+
+function movePlayhead(t) {
+  const ph = document.getElementById("playhead");
+  if (!ph || !analysis) return;
+  const W = 600, PAD = 10;
+  const px = PAD + (t / analysis.duration) * (W - 2 * PAD);
+  ph.setAttribute("x1", px.toFixed(1));
+  ph.setAttribute("x2", px.toFixed(1));
+}
+
+// Note-sequence strip, in both notations, relative to the current Sa.
+// When a raga is selected, each note is checked against its aroha/avaroha
+// grammar: "foreign" (not in raga) and "offdir" (wrong direction) are marked.
+function renderNotes() {
+  els.noteStrip.innerHTML = "";
+  const sa = saMidi();
+  const raga = ragaById(els.ragaSelect.value);
+  const statuses = raga ? grammarStatuses(analysis.notes, sa, raga) : null;
+  analysis.notes.forEach((note, i) => {
+    const sw = midiToSwara(note.midi, sa);
+    const west = midiToWestern(note.midi);
+    const dur = (note.endT - note.startT).toFixed(2);
+    const status = statuses ? statuses[i] : "ok";
+
+    const chip = document.createElement("button");
+    chip.className =
+      "note-chip" +
+      (status === "foreign" ? " foreign" : status === "offdir" ? " offdir" : "");
+    chip.dataset.index = String(i);
+    chip.innerHTML =
+      `<div class="chip-swara">${swaraHtml(sw.idx)}</div>` +
+      `<div class="chip-western">${west.label}</div>` +
+      `<div class="chip-dur">${dur}s</div>`;
+    const note_tag =
+      status === "foreign" ? " · outside raga"
+        : status === "offdir" ? " · wrong direction"
+        : "";
+    chip.title =
+      `${swaraText(sw.idx)} (${sw.octaveName}) · ${west.label} · ${note.freq.toFixed(1)} Hz` +
+      note_tag;
+    chip.addEventListener("click", () => {
+      els.audioEl.currentTime = note.startT;
+      els.audioEl.play();
+    });
+    els.noteStrip.appendChild(chip);
+  });
+  updateRagaSummary();
+}
+
+// Summarize how the detected notes fit the selected raga's grammar.
+function updateRagaSummary() {
+  const raga = ragaById(els.ragaSelect.value);
+  if (!raga || !analysis) {
+    els.ragaSummary.textContent = "";
+    els.ragaSummary.className = "raga-summary";
+    return;
+  }
+  const statuses = grammarStatuses(analysis.notes, saMidi(), raga);
+  const foreign = statuses.filter((s) => s === "foreign").length;
+  const offdir = statuses.filter((s) => s === "offdir").length;
+  if (foreign === 0 && offdir === 0) {
+    els.ragaSummary.textContent = "✓ fits this raga (aroha/avaroha)";
+    els.ragaSummary.className = "raga-summary match";
+  } else {
+    const parts = [];
+    if (foreign) parts.push(`${foreign} outside raga`);
+    if (offdir) parts.push(`${offdir} wrong-direction`);
+    els.ragaSummary.textContent = parts.join(", ");
+    els.ragaSummary.className = "raga-summary mismatch";
+  }
+}
+
+function highlightNote(t) {
+  if (!analysis) return;
+  const idx = analysis.notes.findIndex((n) => t >= n.startT && t < n.endT);
+  const chips = els.noteStrip.children;
+  for (let i = 0; i < chips.length; i++) {
+    chips[i].classList.toggle("active", i === idx);
+  }
+  if (idx >= 0 && chips[idx]) {
+    chips[idx].scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+}
+
+// ---- Playback wiring ----
+els.playBtn.addEventListener("click", () => {
+  if (els.audioEl.paused) els.audioEl.play();
+  else els.audioEl.pause();
+});
+els.audioEl.addEventListener("play", () => { els.playBtn.textContent = "❚❚ Pause"; });
+els.audioEl.addEventListener("pause", () => { els.playBtn.textContent = "▶ Play"; });
+els.audioEl.addEventListener("ended", () => {
+  els.playBtn.textContent = "▶ Play";
+  highlightNote(-1);
+  movePlayhead(0);
+});
+els.audioEl.addEventListener("timeupdate", () => {
+  const t = els.audioEl.currentTime;
+  els.playTime.textContent = `${fmtTime(t)} / ${fmtTime(analysis ? analysis.duration : 0)}`;
+  movePlayhead(t);
+  highlightNote(t);
+});
+
+// ---- File input wiring ----
+els.fileBtn.addEventListener("click", () => els.fileInput.click());
+els.fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+
+function downloadBlob(data, filename, type) {
+  const blob = new Blob([data], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ---- MIDI export ----
+els.midiBtn.addEventListener("click", () => {
+  if (!analysis || !analysis.notes.length) return;
+  const bpm = Math.min(300, Math.max(30, parseInt(els.bpmInput.value, 10) || 120));
+  const quantizeDiv = parseInt(els.quantSelect.value, 10) || 0;
+  const bytes = notesToMidi(analysis.notes, srcName, { bpm, quantizeDiv });
+  downloadBlob(bytes, `${srcName}.mid`, "audio/midi");
+});
+
+// ---- CSV export ----
+function csvCell(v) {
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+els.csvBtn.addEventListener("click", () => {
+  if (!analysis || !analysis.notes.length) return;
+  const sa = saMidi();
+  const raga = ragaById(els.ragaSelect.value);
+  const header = [
+    "index", "start_s", "end_s", "duration_s",
+    "midi", "western", "swara", "octave", "freq_hz",
+  ];
+  if (raga) header.push("in_raga");
+  const rows = [header];
+  analysis.notes.forEach((n, i) => {
+    const w = midiToWestern(n.midi);
+    const s = midiToSwara(n.midi, sa);
+    const row = [
+      i + 1,
+      n.startT.toFixed(3),
+      n.endT.toFixed(3),
+      (n.endT - n.startT).toFixed(3),
+      n.midi,
+      w.label,
+      swaraText(s.idx),
+      s.octaveName,
+      n.freq.toFixed(1),
+    ];
+    if (raga) row.push(isInRaga(n.midi, sa, raga) ? "yes" : "no");
+    rows.push(row);
+  });
+  const csv = rows.map((r) => r.map(csvCell).join(",")).join("\n");
+  downloadBlob(csv, `${srcName}.csv`, "text/csv");
+});
+
+// ---- Auto tempo ----
+els.autoTempoBtn.addEventListener("click", () => {
+  if (!analysis) return;
+  const bpm = estimateTempo(analysis.notes);
+  if (bpm) {
+    els.bpmInput.value = String(bpm);
+    setAnalyzeStatus(`Estimated tempo: ${bpm} BPM (adjust if needed).`);
+  } else {
+    setAnalyzeStatus("Not enough notes to estimate a tempo.", true);
+  }
+});
+
+// ---- Auto-detect Sa ----
+els.detectSaBtn.addEventListener("click", () => {
+  if (!analysis || !analysis.notes.length) return;
+  const midi = detectSa(analysis.notes, 36, 72);
+  if (midi == null) {
+    els.saSuggest.textContent = "Couldn't estimate Sa from this recording.";
+    els.saSuggest.className = "raga-summary mismatch";
+    return;
+  }
+  els.saSelect.value = String(midi);
+  renderNotes(); // re-label everything relative to the new Sa
+  els.saSuggest.textContent = `Sa set to ${midiToWestern(midi).label} (adjust if needed)`;
+  els.saSuggest.className = "raga-summary match";
+});
+
+// ---- Raga labeling ----
+function populateRagas() {
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "None";
+  els.ragaSelect.appendChild(none);
+  for (const r of RAGAS) {
+    const o = document.createElement("option");
+    o.value = r.id;
+    o.textContent = r.name;
+    els.ragaSelect.appendChild(o);
+  }
+}
+els.ragaSelect.addEventListener("change", () => {
+  if (analysis && analysis.notes.length) renderNotes();
+});
+els.detectRagaBtn.addEventListener("click", () => {
+  if (!analysis || !analysis.notes.length) return;
+  const best = rankRagasGrammar(analysis.notes, saMidi())[0];
+  els.ragaSelect.value = best.raga.id;
+  renderNotes();
+  const cov = Math.round(best.coverage * 100);
+  const issues = [];
+  if (best.foreign) issues.push(`${best.foreign} foreign`);
+  if (best.offdir) issues.push(`${best.offdir} wrong-direction`);
+  setAnalyzeStatus(
+    `Best match: ${best.raga.name} (${cov}% of swaras present` +
+      (issues.length ? `, ${issues.join(", ")}` : "") +
+      ")."
+  );
+});
+
+// ---- Wire up ----
+els.micBtn.addEventListener("click", () => {
+  if (listening) stopMic();
+  else startMic();
+});
+
+// Re-label the analyzed sequence when Sa changes (Western is unaffected).
+els.saSelect.addEventListener("change", () => {
+  els.saSuggest.textContent = ""; // manual change supersedes any suggestion
+  els.saSuggest.className = "raga-summary";
+  if (analysis && analysis.notes.length) renderNotes();
+});
+
+// ---- Notation toggle (shared by both tabs) ----
+// One place owns setNotation, then broadcasts so every view re-labels itself.
+els.notationSelect.addEventListener("change", () => {
+  setNotation(els.notationSelect.value);
+  document.dispatchEvent(new Event("notationchange"));
+});
+document.addEventListener("notationchange", () => {
+  if (analysis && analysis.notes.length) renderNotes();
+  // The live tuner readout refreshes on the next mic frame.
+});
+
+setNotation(els.notationSelect.value); // sync state with the initial dropdown value
+populateSa();
+populateRagas();
+buildTicks();
+clearNote();
+
+// ===== trainer.js =====
+// Ear Trainer view. Self-contained IIFE so its ~40 names don't collide with the
+// tuner's in the shared bundle scope. Reads the shared Sa from #saSelect.
+
+(function () {
+  "use strict";
+
+  // ---- Music model -------------------------------------------------------
+  // 12 swaras relative to Sa. komal = lowercase, tivra Ma = "Ma'".
+  const SWARAS = [
+    { off: 0,  ind: "Sa",  full: "Shadja" },
+    { off: 1,  ind: "re",  full: "komal Rishabh" },
+    { off: 2,  ind: "Re",  full: "Rishabh" },
+    { off: 3,  ind: "ga",  full: "komal Gandhar" },
+    { off: 4,  ind: "Ga",  full: "Gandhar" },
+    { off: 5,  ind: "Ma",  full: "Madhyam" },
+    { off: 6,  ind: "Ma'", full: "tivra Madhyam" },
+    { off: 7,  ind: "Pa",  full: "Pancham" },
+    { off: 8,  ind: "dha", full: "komal Dhaivat" },
+    { off: 9,  ind: "Dha", full: "Dhaivat" },
+    { off: 10, ind: "ni",  full: "komal Nishad" },
+    { off: 11, ind: "Ni",  full: "Nishad" },
+    { off: 12, ind: "Sa↑", full: "upper Shadja" },
+  ];
+  const SHUDDHA = [0, 2, 4, 5, 7, 9, 11, 12]; // default enabled pool (full octave)
+  const WESTERN = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+  // Western names anchored to C (for "C key = Sa" labels); white-key pitch classes.
+  const CHROM_C = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const WHITE_PC = new Set([0, 2, 4, 5, 7, 9, 11]);
+
+  // Tanpura string choices — semitone offset from Sa (madhya = middle octave).
+  const STRING_OPTIONS = [
+    { v: "",   label: "— off" },
+    { v: 7,    label: "Pa · madhya" },
+    { v: -5,   label: "Pa · mandra" },
+    { v: 5,    label: "Ma · madhya" },
+    { v: -7,   label: "Ma · mandra" },
+    { v: 11,   label: "Ni · madhya" },
+    { v: -1,   label: "Ni · mandra" },
+    { v: 12,   label: "Sa · tara" },
+    { v: 0,    label: "Sa · madhya" },
+    { v: -12,  label: "Sa · mandra" },
+  ];
+  // Named 4-string tanpura tunings: tuning-note (mandra) + Sa + Sa + Sa (mandra).
+  const TUNINGS = {
+    Pa: [-5, 0, 0, -12],
+    Ma: [-7, 0, 0, -12],
+    Ni: [-1, 0, 0, -12],
+    Sa: [-12, 0, 0, -12],
+  };
+
+  // The reference phrase before the mystery note(s). Each step is toggleable.
+  const REF_TEMPLATE = [
+    { off: 0,  label: "Sa" },
+    { off: 7,  label: "Pa" },
+    { off: 0,  label: "Sa" },
+    { off: 12, label: "Sa↑" }, // Sa of the next octave
+  ];
+
+  const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+  // ---- Shared Sa (from the app-wide #saSelect in the header) --------------
+  const sharedSaSelect = () => document.getElementById("saSelect");
+  const sharedSaMidi = () => parseInt(sharedSaSelect().value, 10);
+
+  // Swara labels honoring the shared notation toggle (swaraHtml/swaraText live in
+  // notes.js, in the bundle scope). Sa↑ keeps its octave mark in both schemes.
+  const swHtml = (off) => swaraHtml(off) + (off >= 12 ? "↑" : "");
+  const swText = (off) => swaraText(off) + (off >= 12 ? "↑" : "");
+
+  // ---- State -------------------------------------------------------------
+  const state = {
+    saMidi: 60,            // set from the shared Sa on init
+    instrument: "synth",   // "synth" (offline oscillator) or a sampled key
+    drone: false,
+    droneGain: 0.006,      // per-voice gain; 10% on the volume slider
+    droneTone: 30,         // 0..100 -> low-pass cutoff; 30 = upper end of "mellow"
+    strings: [-5, 0, 0, -12], // 4 tanpura strings (Pa tuning): Pa·mandra, Sa, Sa, Sa·mandra
+    noteLen: 0.8,          // seconds
+    gap: 0.4,              // seconds
+    seqLen: 1,
+    ref: [true, true, false, true], // Sa · Pa · Sa↑ (no lower-Sa repeat) by default
+    autoNext: false,       // auto-play a new round after each guess
+    speak: false,          // read the answer aloud after the phrase
+    speakDelay: 3,         // seconds of thinking time before it speaks
+    voiceStyle: "phonetic", // "phonetic" (Sah, Ray, Gah) or "plain" (Sa, Re, Ga)
+    saAtC: true,           // keyboard labels: C key = Sa (movable) vs actual pitch
+    pool: new Set(SHUDDHA),
+    target: null,          // array of offsets; non-null while accepting a guess
+    lastPlayed: null,      // last phrase, kept so Replay works after guessing
+    guess: [],
+    streak: 0,
+    correct: 0,
+    total: 0,
+  };
+
+  // ---- Audio -------------------------------------------------------------
+  let audio = null;
+  let droneNodes = null;
+  let droneBuffer = null;      // decoded tanpura sample, if a tanpura.mp3 is found
+  let droneTried = false;      // have we attempted to load the sample yet
+  const DRONE_SAMPLE_MIDI = 60; // assume tanpura.mp3 is a C (Sa = C4) recording
+  let nextTimer = null;         // pending auto-play-next timeout
+  const noteStats = {};         // offset -> { c: correct, t: total } per-note tally
+
+  // ---- Spoken answer ------------------------------------------------------
+  // Spoken labels must disambiguate komal/shuddha — lowercase-vs-capital is a
+  // *visual* convention only ("re" and "Re" sound identical aloud).
+  //
+  // Two spellings of the base names: "plain" gives the TTS engine the real
+  // names; "phonetic" respells them so an English voice lands closer to the
+  // Indian pronunciation. Style x notation compose from one spec table.
+  const SPEAK_BASES = {
+    plain:    { Sa: "Sa",  Re: "Re",  Ga: "Ga",  Ma: "Ma",  Pa: "Pa",  Dha: "Dha",  Ni: "Ni" },
+    phonetic: { Sa: "Sah", Re: "Ray", Ga: "Gah", Ma: "Mah", Pa: "Pah", Dha: "Dhaa", Ni: "Nee" },
+  };
+  const SPEAK_SPEC = [
+    { b: "Sa",  mod: "",       num: "" },
+    { b: "Re",  mod: "komal",  num: "one" },
+    { b: "Re",  mod: "",       num: "two" },
+    { b: "Ga",  mod: "komal",  num: "one" },
+    { b: "Ga",  mod: "",       num: "two" },
+    { b: "Ma",  mod: "",       num: "one" },
+    { b: "Ma",  mod: "teevra", num: "two" },
+    { b: "Pa",  mod: "",       num: "" },
+    { b: "Dha", mod: "komal",  num: "one" },
+    { b: "Dha", mod: "",       num: "two" },
+    { b: "Ni",  mod: "komal",  num: "one" },
+    { b: "Ni",  mod: "",       num: "two" },
+  ];
+  function speakLabel(off) {
+    const idx = ((off % 12) + 12) % 12;
+    const s = SPEAK_SPEC[idx];
+    const base = (SPEAK_BASES[state.voiceStyle] || SPEAK_BASES.plain)[s.b];
+    const txt = getNotation() === "numbered"
+      ? (s.num ? `${base} ${s.num}` : base)
+      : (s.mod ? `${s.mod} ${base}` : base);
+    return off >= 12 ? "upper " + txt : txt; // off 12 -> "upper Sa"
+  }
+
+  const SPEAK_GAP = 0.5;   // seconds of silence between spoken swaras
+  let speakTimer = null;
+  let speakChainTimer = null; // pause between words in a multi-note answer
+  let speakToken = 0;      // bumped on cancel, so a stale chain can't resume
+  let speakSources = [];   // playing clip sources, so we can stop them
+  let voiceClips = null;   // AudioBuffers for voice/0..12.mp3, if that set exists
+  let clipsTried = false;
+  let ttsVoice = null;
+
+  function initVoices() {
+    if (!window.speechSynthesis) return;
+    const pick = () => {
+      const vs = speechSynthesis.getVoices();
+      if (!vs.length) return;
+      // Indian English / Hindi voices pronounce the swara names best.
+      ttsVoice = vs.find((v) => /^en-IN/i.test(v.lang))
+        || vs.find((v) => /^hi/i.test(v.lang))
+        || vs.find((v) => /^en/i.test(v.lang))
+        || vs[0];
+    };
+    pick();
+    speechSynthesis.onvoiceschanged = pick;
+  }
+
+  // Optional recorded clips: voice/0.mp3 .. voice/12.mp3 (one per swara offset).
+  // If the full set is present it takes over from TTS; otherwise we stay on TTS.
+  async function tryLoadVoiceClips() {
+    clipsTried = true;
+    try {
+      const bufs = [];
+      for (let i = 0; i <= 12; i++) {
+        const res = await fetch(`voice/${i}.mp3`);
+        if (!res.ok) return; // no clip set — stay on TTS
+        bufs[i] = await ac().decodeAudioData(await res.arrayBuffer());
+      }
+      voiceClips = bufs;
+    } catch (e) { /* stay on TTS */ }
+  }
+
+  function clearSpeak() {
+    speakToken++; // invalidate any chain already in flight
+    clearTimeout(speakTimer);
+    clearTimeout(speakChainTimer);
+    speakTimer = speakChainTimer = null;
+    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    speakSources.forEach((s) => { try { s.stop(); } catch (e) {} });
+    speakSources = [];
+  }
+
+  // Speak a list of swaras — recorded clips if the set is present, else TTS —
+  // then run onDone.
+  function speakList(offsets, onDone) {
+    const token = speakToken;              // this run is stale once clearSpeak bumps it
+    const alive = () => token === speakToken;
+    const done = () => { if (alive() && onDone) onDone(); };
+
+    if (voiceClips) {
+      const ctx = ac();
+      let t = ctx.currentTime + 0.05;
+      offsets.forEach((off) => {
+        const buf = voiceClips[off];
+        if (!buf) return;
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(masterBus());
+        src.start(t);
+        speakSources.push(src);
+        t += buf.duration + SPEAK_GAP;
+      });
+      speakChainTimer = setTimeout(done, Math.max(0, (t - ctx.currentTime) * 1000));
+      return;
+    }
+
+    if (!window.speechSynthesis || !offsets.length) { done(); return; }
+
+    // Queued utterances run back-to-back with no pause, so speak them one at a
+    // time and wait SPEAK_GAP between words.
+    let i = 0;
+    const next = () => {
+      if (!alive()) return;
+      if (i >= offsets.length) { done(); return; }
+      const u = new SpeechSynthesisUtterance(speakLabel(offsets[i++]));
+      if (ttsVoice) u.voice = ttsVoice;
+      u.rate = 0.95;
+      const after = () => {
+        if (!alive()) return;
+        if (i >= offsets.length) { done(); return; }
+        speakChainTimer = setTimeout(next, SPEAK_GAP * 1000);
+      };
+      u.onend = after;
+      u.onerror = after; // never stall the chain on a speech error
+      speechSynthesis.speak(u);
+    };
+    next();
+  }
+
+  // Speak the answer, then (if auto-play is on) advance — chaining off the end of
+  // the speech so the next phrase never talks over it.
+  function speakAnswer(offsets) {
+    speakList(offsets, () => {
+      if (!state.autoNext) return;
+      clearTimeout(nextTimer);
+      nextTimer = setTimeout(newRound, 800);
+    });
+  }
+
+  // Audition the whole set (Sa..Sa↑) in the current voice/style, to compare.
+  function previewVoice() {
+    clearSpeak();
+    speakList(Array.from({ length: 13 }, (_, i) => i), null);
+  }
+
+  // Schedule the readback for `delay` seconds after the phrase finishes.
+  function scheduleSpeak(offsets, endAt) {
+    clearSpeak();
+    if (!state.speak) return;
+    const waitMs = Math.max(0, (endAt - ac().currentTime) * 1000) + state.speakDelay * 1000;
+    speakTimer = setTimeout(() => speakAnswer(offsets), waitMs);
+  }
+
+  function ac() {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "suspended") audio.resume();
+    return audio;
+  }
+
+  // Master bus: a limiter so overlapping voices (notes + drone) can't clip.
+  let master = null;
+  function masterBus() {
+    if (master) return master;
+    const ctx = ac();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -6;
+    comp.knee.value = 6;
+    comp.ratio.value = 12;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.12;
+    comp.connect(ctx.destination);
+    master = comp;
+    return master;
+  }
+
+  // Synthesized voice — soft tone with a few harmonics (evens perceived loudness).
+  let synthWave = null;
+  function synthPeriodicWave(ctx) {
+    if (synthWave) return synthWave;
+    const amps = [0, 1, 0.5, 0.33, 0.22, 0.14, 0.09];
+    synthWave = ctx.createPeriodicWave(new Float32Array(amps.length), new Float32Array(amps));
+    return synthWave;
+  }
+
+  function synthVoice(freq, at, dur, { gain = 0.2 } = {}) {
+    const ctx = ac();
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.setPeriodicWave(synthPeriodicWave(ctx));
+    osc.frequency.value = freq;
+    const a = 0.02, r = 0.08;
+    g.gain.setValueAtTime(0, at);
+    g.gain.linearRampToValueAtTime(gain, at + a);
+    g.gain.setValueAtTime(gain, at + Math.max(a, dur - r));
+    g.gain.linearRampToValueAtTime(0, at + dur);
+    osc.connect(g).connect(masterBus());
+    osc.start(at);
+    osc.stop(at + dur + 0.02);
+  }
+
+  // Sampled instruments via smplr — loaded on demand (needs network).
+  const SAMPLED = { piano: "acoustic_grand_piano", flute: "flute", accordion: "accordion", harmonica: "harmonica" };
+  const loaded = {};
+  let smplrMod = null;
+  async function ensureInstrument(key) {
+    if (key === "synth") return null;
+    if (loaded[key]) return loaded[key];
+    if (!smplrMod) smplrMod = await import("https://unpkg.com/smplr/dist/index.mjs");
+    const inst = new smplrMod.Soundfont(ac(), { instrument: SAMPLED[key], destination: masterBus() });
+    await inst.ready;
+    loaded[key] = inst;
+    return inst;
+  }
+
+  // Play one game note at absolute AudioContext time `at`.
+  function playMidi(midi, at, dur) {
+    const key = state.instrument;
+    const inst = key !== "synth" ? loaded[key] : null;
+    if (inst) inst.start({ note: midi, time: at, duration: dur, velocity: 95 });
+    else synthVoice(midiToFreq(midi), at, dur);
+  }
+
+  // Plays: reference phrase then the target note(s). Returns when it finishes,
+  // so the spoken answer can be scheduled relative to the end of the phrase.
+  function playRound(offsets) {
+    const ctx = ac();
+    const L = state.noteLen, G = state.gap;
+    let t = ctx.currentTime + 0.1;
+    const ref = REF_TEMPLATE.filter((_, i) => state.ref[i]).map((r) => r.off);
+    for (const off of ref) { playMidi(state.saMidi + off, t, L); t += L + G; }
+    if (ref.length) t += G * 0.6;
+    for (const off of offsets) { playMidi(state.saMidi + off, t, L); t += L + G; }
+    return t;
+  }
+
+  function toneToCutoff(pct) { return 250 * Math.pow(6000 / 250, pct / 100); }
+  function toneLabel(pct) { return pct < 34 ? "mellow" : pct < 67 ? "medium" : "bright"; }
+
+  async function tryLoadTanpuraSample() {
+    try {
+      const res = await fetch("tanpura.mp3");
+      if (!res.ok) return;
+      droneBuffer = await ac().decodeAudioData(await res.arrayBuffer());
+    } catch (e) { /* no sample — fall back to the continuous synth drone */ }
+  }
+
+  function startDrone() {
+    const ctx = ac();
+    if (droneBuffer) {
+      const src = ctx.createBufferSource();
+      src.buffer = droneBuffer;
+      src.loop = true;
+      src.playbackRate.value = midiToFreq(state.saMidi) / midiToFreq(DRONE_SAMPLE_MIDI);
+      const g = ctx.createGain();
+      g.gain.value = state.droneGain * 4;
+      src.connect(g).connect(masterBus());
+      src.start(ctx.currentTime + 0.05);
+      droneNodes = { src, gain: g };
+    } else {
+      // Continuous shruti-box-style drone: sustained strings, no re-triggering.
+      const now = ctx.currentTime;
+      const g = ctx.createGain();
+      g.gain.value = state.droneGain * 3;
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = toneToCutoff(state.droneTone);
+      filter.Q.value = 0.9;
+      filter.connect(g).connect(masterBus());
+
+      const ampLfo = ctx.createOscillator();
+      const ampLfoAmt = ctx.createGain();
+      ampLfo.frequency.value = 0.13;
+      ampLfoAmt.gain.value = state.droneGain * 0.8;
+      ampLfo.connect(ampLfoAmt).connect(g.gain);
+      ampLfo.start(now);
+
+      const cutLfo = ctx.createOscillator();
+      const cutLfoAmt = ctx.createGain();
+      cutLfo.frequency.value = 0.07;
+      cutLfoAmt.gain.value = filter.frequency.value * 0.25;
+      cutLfo.connect(cutLfoAmt).connect(filter.frequency);
+      cutLfo.start(now);
+
+      const oscs = [ampLfo, cutLfo];
+      const voices = state.strings.filter((v) => v != null);
+      const perVoice = voices.length ? 1 / (voices.length * 3) : 0;
+      voices.forEach((off) => {
+        const f = midiToFreq(state.saMidi + off);
+        [0, 4, -4].forEach((cents) => {
+          const o = ctx.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.value = f * Math.pow(2, cents / 1200);
+          const og = ctx.createGain();
+          og.gain.value = perVoice;
+          o.connect(og).connect(filter);
+          o.start(now);
+          oscs.push(o);
+        });
+      });
+      droneNodes = { oscs, gain: g, filter };
+    }
+  }
+  function stopDrone() {
+    if (!droneNodes) return;
+    if (droneNodes.timer) clearInterval(droneNodes.timer);
+    if (droneNodes.src) { try { droneNodes.src.stop(); } catch (e) {} }
+    if (droneNodes.oscs) droneNodes.oscs.forEach((o) => { try { o.stop(); } catch (e) {} });
+    droneNodes = null;
+  }
+  function restartDroneIfOn() {
+    if (droneNodes) { stopDrone(); startDrone(); }
+  }
+
+  // ---- Rendering ---------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+
+  function buildStringSelectors() {
+    const box = $("strings");
+    box.innerHTML = "";
+    state.strings.forEach((val, i) => {
+      const sel = document.createElement("select");
+      STRING_OPTIONS.forEach((o) => {
+        const opt = document.createElement("option");
+        opt.value = o.v;
+        opt.textContent = o.label;
+        if (String(o.v) === String(val == null ? "" : val)) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.onchange = (e) => {
+        state.strings[i] = e.target.value === "" ? null : +e.target.value;
+        $("tuning-select").value = "custom";
+        restartDroneIfOn();
+      };
+      box.appendChild(sel);
+    });
+  }
+
+  function applyTuning(name) {
+    if (!TUNINGS[name]) return;
+    state.strings = TUNINGS[name].slice();
+    buildStringSelectors();
+    restartDroneIfOn();
+  }
+
+  function renderRef() {
+    const box = $("refchips");
+    box.innerHTML = "";
+    REF_TEMPLATE.forEach((r, i) => {
+      const c = document.createElement("span");
+      c.className = "chip" + (state.ref[i] ? " on" : "");
+      c.innerHTML = `${r.label}<small>${WESTERN[(state.saMidi + r.off) % 12]}</small>`;
+      c.onclick = () => { state.ref[i] = !state.ref[i]; renderRef(); renderPhrase(); };
+      box.appendChild(c);
+    });
+  }
+
+  function renderPhrase() {
+    const parts = REF_TEMPLATE.filter((_, i) => state.ref[i]).map((r) => r.label);
+    $("phrase").innerHTML = (parts.length ? parts.join(" · ") + " · " : "") + '<span class="q">?</span>';
+  }
+
+  function renderPool() {
+    const box = $("pool");
+    box.innerHTML = "";
+    SWARAS.forEach((s) => {
+      const c = document.createElement("span");
+      c.className = "chip" + (state.pool.has(s.off) ? " on" : "");
+      c.title = s.full;
+      c.innerHTML = `${swHtml(s.off)}<small>${WESTERN[(state.saMidi + s.off) % 12]}</small>`;
+      c.onclick = () => {
+        if (state.pool.has(s.off)) {
+          if (state.pool.size > 1) state.pool.delete(s.off);
+        } else state.pool.add(s.off);
+        renderPool();
+        renderAnswers();
+      };
+      box.appendChild(c);
+    });
+  }
+
+  function keyInd(off) {
+    return swHtml(off);
+  }
+
+  function keyboardLayout() {
+    const saAtC = state.saAtC;
+    const basePc = saAtC ? 0 : (state.saMidi % 12);
+    const isWhite = (pc) => WHITE_PC.has(((pc % 12) + 12) % 12);
+    let start = 0, end = 12;
+    while (!isWhite(basePc + start)) start--;
+    while (!isWhite(basePc + end)) end++;
+    const whites = [], blacks = [];
+    let wc = 0;
+    for (let s = start; s <= end; s++) {
+      const inRange = s >= 0 && s <= 12;
+      const western = saAtC ? CHROM_C[((s % 12) + 12) % 12]
+                            : WESTERN[(((state.saMidi + s) % 12) + 12) % 12];
+      const key = { off: s, inRange, western, ind: inRange ? keyInd(s) : "" };
+      if (isWhite(basePc + s)) { whites.push(key); wc++; }
+      else { key.afterWi = wc - 1; blacks.push(key); }
+    }
+    return { whites, blacks, numWhite: wc };
+  }
+
+  function makeKey(key, black) {
+    const k = document.createElement("div");
+    k.className = black ? "bkey" : "wkey";
+    const active = key.inRange && state.pool.has(key.off);
+    if (!active) k.className += " off";
+    const st = active ? noteStats[key.off] : null;
+    const count = st && st.t
+      ? `<span class="kcount${st.c / st.t >= 0.5 ? " good" : ""}">${st.c}/${st.t}</span>` : "";
+    k.innerHTML = count + `<span class="klbl-ind">${key.ind}</span><span class="klbl-west">${key.western}</span>`;
+    if (active) k.title = (SWARAS.find((x) => x.off === key.off) || {}).full || "";
+    k.onclick = () => { if (state.target && active) onGuess(key.off); };
+    return k;
+  }
+
+  function renderAnswers() {
+    const box = $("answers");
+    box.className = "piano";
+    box.innerHTML = "";
+    const { whites, blacks, numWhite } = keyboardLayout();
+    whites.forEach((key) => box.appendChild(makeKey(key, false)));
+    blacks.forEach((key) => {
+      const k = makeKey(key, true);
+      k.style.left = `calc(${((key.afterWi + 1) / numWhite * 100).toFixed(2)}% - 4%)`;
+      box.appendChild(k);
+    });
+  }
+
+  function indLabel(off) {
+    return swText(off);
+  }
+
+  function renderGuess() {
+    const gd = $("guess-display");
+    gd.className = "guess-display";
+    gd.textContent = state.guess.length
+      ? state.guess.map(indLabel).join(" · ")
+      : "—";
+    $("undo-btn").disabled = state.guess.length === 0;
+  }
+
+  function renderScore() {
+    $("score").textContent = `Streak ${state.streak} · ${state.correct}/${state.total} correct`;
+  }
+
+  // ---- Game flow ---------------------------------------------------------
+  function newRound() {
+    clearTimeout(nextTimer);
+    clearSpeak();
+    const pool = [...state.pool];
+    state.target = Array.from({ length: state.seqLen }, () =>
+      pool[Math.floor(Math.random() * pool.length)]
+    );
+    state.lastPlayed = state.target;
+    state.guess = [];
+    $("undo-btn").disabled = true;
+    $("replay-btn").disabled = false;
+    renderAnswers();
+    const endAt = playRound(state.target);
+    scheduleSpeak(state.target, endAt);
+  }
+
+  function onGuess(off) {
+    if (!state.target || state.guess.length >= state.target.length) return;
+    if (state.guess.length === 0) {
+      $("feedback").textContent = "";
+      $("feedback").className = "feedback";
+    }
+    state.guess.push(off);
+    renderGuess();
+    if (state.guess.length === state.target.length) evaluate();
+  }
+
+  function evaluate() {
+    const ok = state.guess.every((g, i) => g === state.target[i]);
+    state.target.forEach((off, i) => {
+      const st = noteStats[off] || (noteStats[off] = { c: 0, t: 0 });
+      st.t++;
+      if (state.guess[i] === off) st.c++;
+    });
+    state.total++;
+    if (ok) { state.correct++; state.streak++; }
+    else state.streak = 0;
+
+    const answer = state.target
+      .map((off) => `${indLabel(off)} (${WESTERN[(state.saMidi + off) % 12]})`)
+      .join(" · ");
+    const fb = $("feedback");
+    fb.className = "feedback " + (ok ? "good" : "bad");
+    fb.textContent = ok ? `✓ Correct — ${answer}` : `✗ It was ${answer}`;
+    $("guess-display").className = "guess-display " + (ok ? "good" : "bad");
+    renderScore();
+
+    state.target = null;
+    renderAnswers();
+
+    // When the answer is spoken, the readback drives the next round (so it never
+    // gets cut off mid-word); otherwise advance on a short timer as before.
+    if (state.autoNext && !state.speak) {
+      clearTimeout(nextTimer);
+      nextTimer = setTimeout(newRound, 1400);
+    }
+  }
+
+  // ---- Wiring ------------------------------------------------------------
+  function init() {
+    state.saMidi = sharedSaMidi();
+    initVoices();
+    buildStringSelectors();
+    renderRef();
+    renderPhrase();
+    renderPool();
+    renderAnswers();
+    renderGuess();
+    renderScore();
+
+    // React to the shared Sa (also changed from the Tuner tab / auto-detect).
+    sharedSaSelect().addEventListener("change", () => {
+      state.saMidi = sharedSaMidi();
+      renderRef();
+      renderPhrase();
+      renderPool();
+      renderAnswers();
+      restartDroneIfOn();
+    });
+
+    // Re-label keys/chips/guess when the shared notation toggle changes.
+    document.addEventListener("notationchange", () => {
+      renderPool();
+      renderAnswers();
+      renderGuess();
+    });
+
+    $("autonext-toggle").onchange = (e) => {
+      state.autoNext = e.target.checked;
+      if (!state.autoNext) clearTimeout(nextTimer);
+    };
+    $("sa-at-c-toggle").onchange = (e) => {
+      state.saAtC = e.target.checked;
+      renderAnswers();
+    };
+    $("timbre-select").onchange = async (e) => {
+      const key = e.target.value;
+      const label = e.target.selectedOptions[0].textContent.split(" — ")[0];
+      const status = $("inst-status");
+      state.instrument = key;
+      if (key === "synth") { status.textContent = ""; return; }
+      status.textContent = "Loading " + label + "…";
+      try {
+        await ensureInstrument(key);
+        status.textContent = state.instrument === key ? label + " ready" : "";
+      } catch (err) {
+        status.textContent = "Couldn't load samples (offline?) — using synth";
+        state.instrument = "synth";
+        e.target.value = "synth";
+      }
+    };
+    $("tuning-select").onchange = (e) => applyTuning(e.target.value);
+    $("drone-toggle").onchange = async (e) => {
+      if (e.target.checked) {
+        if (!droneTried) { droneTried = true; await tryLoadTanpuraSample(); }
+        startDrone();
+      } else stopDrone();
+    };
+    $("drone-vol-slider").oninput = (e) => {
+      const pct = +e.target.value;
+      state.droneGain = (pct / 100) * 0.06;
+      $("drone-vol-val").textContent = pct + "%";
+      if (droneNodes && droneNodes.gain)
+        droneNodes.gain.gain.value = state.droneGain * (droneBuffer ? 4 : 3);
+    };
+    $("drone-tone-slider").oninput = (e) => {
+      state.droneTone = +e.target.value;
+      $("drone-tone-val").textContent = toneLabel(state.droneTone);
+      if (droneNodes && droneNodes.filter)
+        droneNodes.filter.frequency.value = toneToCutoff(state.droneTone);
+    };
+
+    $("len-slider").oninput = (e) => {
+      state.noteLen = +e.target.value / 1000;
+      $("len-val").textContent = state.noteLen.toFixed(2) + "s";
+    };
+    $("gap-slider").oninput = (e) => {
+      state.gap = +e.target.value / 1000;
+      $("gap-val").textContent = state.gap.toFixed(2) + "s";
+    };
+    $("seq-slider").oninput = (e) => {
+      state.seqLen = +e.target.value;
+      $("seq-val").textContent = state.seqLen + (state.seqLen === 1 ? " note" : " notes");
+    };
+
+    $("speak-toggle").onchange = async (e) => {
+      state.speak = e.target.checked;
+      const status = $("voice-status");
+      if (!state.speak) { clearSpeak(); status.textContent = ""; return; }
+      // iOS only allows speech once it has been primed inside a user gesture.
+      if (window.speechSynthesis) {
+        const prime = new SpeechSynthesisUtterance(" ");
+        prime.volume = 0;
+        speechSynthesis.speak(prime);
+      }
+      status.textContent = "Checking voice…";
+      if (!clipsTried) await tryLoadVoiceClips();
+      status.textContent = voiceClips
+        ? "Using recorded clips"
+        : ttsVoice ? `Voice: ${ttsVoice.name}`
+        : window.speechSynthesis ? "Using browser speech" : "No speech support";
+    };
+    $("speak-delay-slider").oninput = (e) => {
+      state.speakDelay = +e.target.value;
+      $("speak-delay-val").textContent = state.speakDelay.toFixed(1) + "s";
+    };
+    $("voice-style-select").onchange = (e) => { state.voiceStyle = e.target.value; };
+    $("voice-preview-btn").onclick = async () => {
+      if (!clipsTried) await tryLoadVoiceClips();
+      $("voice-status").textContent = voiceClips
+        ? "Using recorded clips"
+        : ttsVoice ? `Voice: ${ttsVoice.name}` : "Using browser speech";
+      previewVoice(); // this click is the user gesture iOS needs
+    };
+
+    $("play-btn").onclick = newRound;
+    $("replay-btn").onclick = () => {
+      if (!state.lastPlayed) return;
+      const endAt = playRound(state.lastPlayed);
+      scheduleSpeak(state.lastPlayed, endAt); // re-arm the readback for the replay
+    };
+    $("undo-btn").onclick = () => {
+      state.guess.pop();
+      renderGuess();
+    };
+  }
+
+  init();
+})();
+
+})();
+  </script>
+</body>
+</html>
