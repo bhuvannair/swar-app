@@ -221,6 +221,26 @@ body {
 }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
+/* Record button — neutral until recording, then red. */
+.record-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.record-btn .rec-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--red); opacity: 0.85;
+}
+.record-btn.recording {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+}
+.record-btn.recording .rec-dot {
+  background: #fff;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
 .tuner { display: flex; flex-direction: column; gap: 22px; }
 
 .dial { position: relative; }
@@ -513,6 +533,10 @@ body {
         <span class="mic-dot"></span>
         <span id="micLabel">Start mic</span>
       </button>
+      <button id="recordBtn" class="mic-btn record-btn" type="button">
+        <span class="rec-dot"></span>
+        <span id="recordLabel">Record notes</span>
+      </button>
     </section>
 
     <section class="tuner">
@@ -565,6 +589,13 @@ body {
         </div>
         <div class="playback">
           <button id="playBtn" class="play-btn" type="button">▶ Play</button>
+          <select id="playSource" class="mini-select" title="What Play should play">
+            <option value="voice">Voice</option>
+            <option value="sine">Synth · Sine</option>
+            <option value="triangle">Synth · Triangle</option>
+            <option value="square">Synth · Reed</option>
+            <option value="sawtooth">Synth · Bright</option>
+          </select>
           <span id="playTime" class="play-time">0:00 / 0:00</span>
           <span id="noteCount" class="note-count"></span>
           <button id="midiBtn" class="midi-btn" type="button">⬇ MIDI</button>
@@ -1436,6 +1467,8 @@ const els = {
   notationSelect: document.getElementById("notationSelect"),
   micBtn: document.getElementById("micBtn"),
   micLabel: document.getElementById("micLabel"),
+  recordBtn: document.getElementById("recordBtn"),
+  recordLabel: document.getElementById("recordLabel"),
   needle: document.getElementById("needle"),
   cents: document.getElementById("centsReadout"),
   ticks: document.getElementById("ticks"),
@@ -1461,6 +1494,7 @@ const els = {
   results: document.getElementById("results"),
   contour: document.getElementById("contour"),
   playBtn: document.getElementById("playBtn"),
+  playSource: document.getElementById("playSource"),
   playTime: document.getElementById("playTime"),
   noteCount: document.getElementById("noteCount"),
   noteStrip: document.getElementById("noteStrip"),
@@ -1473,6 +1507,8 @@ const HOLD_MS = 500; // keep last note on screen through brief signal dropouts
 let audioCtx = null;
 let analyser = null;
 let mediaStream = null;
+let sourceNode = null;   // mic source (shared by tuner + recorder)
+let muteNode = null;     // zero-gain sink that keeps the graph pulling
 let rafId = null;
 let listening = false;
 const smoother = new PitchSmoother(5);
@@ -1596,18 +1632,18 @@ async function startMic() {
     // Mobile browsers often start the context suspended.
     if (audioCtx.state === "suspended") await audioCtx.resume();
 
-    const source = audioCtx.createMediaStreamSource(mediaStream);
+    sourceNode = audioCtx.createMediaStreamSource(mediaStream);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
-    source.connect(analyser);
+    sourceNode.connect(analyser);
 
     // Keep the graph "pulling" on mobile: route analyser -> muted gain ->
     // destination. Without a path to the output, mobile browsers stop feeding
     // fresh samples to the analyser after ~1s. Zero gain = silent (no feedback).
-    const mute = audioCtx.createGain();
-    mute.gain.value = 0;
-    analyser.connect(mute);
-    mute.connect(audioCtx.destination);
+    muteNode = audioCtx.createGain();
+    muteNode.gain.value = 0;
+    analyser.connect(muteNode);
+    muteNode.connect(audioCtx.destination);
 
     // If the OS/browser suspends the context (e.g. interruption), resume it.
     audioCtx.onstatechange = () => {
@@ -1628,11 +1664,12 @@ async function startMic() {
 }
 
 function stopMic() {
+  if (recording) finishRecording(); // capture what we have before tearing down
   listening = false;
   if (rafId) cancelAnimationFrame(rafId);
   if (mediaStream) mediaStream.getTracks().forEach((t) => t.stop());
   if (audioCtx) audioCtx.close();
-  audioCtx = analyser = mediaStream = null;
+  audioCtx = analyser = mediaStream = sourceNode = muteNode = null;
   els.micBtn.classList.remove("listening");
   els.micLabel.textContent = "Start mic";
   setStatus("Stopped.");
@@ -1666,63 +1703,69 @@ function setAnalyzeStatus(msg, isError = false) {
   els.analyzeStatus.classList.toggle("error", isError);
 }
 
+// Shared pipeline: analyze an AudioBuffer, auto-detect Sa/tempo, and render the
+// results + wire up playback. Used by both file upload and live mic capture.
+async function analyzeAndShow(audioBuffer, playbackBlob, name) {
+  stopAllPlayback(); // stop any playback from a previous take
+  srcName = (name || "swar").replace(/\.[^.]+$/, "") || "swar";
+  els.results.hidden = true;
+  setAnalyzeStatus("Analyzing… 0%");
+  analysis = await analyzeFile(audioBuffer, (p) => {
+    setAnalyzeStatus(`Analyzing… ${Math.round(p * 100)}%`);
+  });
+
+  if (analysis.notes.length === 0) {
+    setAnalyzeStatus(
+      "No clear pitches found — sing/play a clear monophonic line and try again.",
+      true
+    );
+    return;
+  }
+
+  // Prepare playback source.
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = URL.createObjectURL(playbackBlob);
+  els.audioEl.src = objectUrl;
+
+  // Auto-detect Sa (tonic) and apply it, so the sequence is labeled relative to
+  // the take's own Sa. User can still override via the Sa dropdown above.
+  const sa = detectSa(analysis.notes, 36, 72);
+  if (sa != null) {
+    els.saSelect.value = String(sa);
+    els.saSuggest.textContent = `Sa auto-detected: ${midiToWestern(sa).label} (change above to override)`;
+    els.saSuggest.className = "raga-summary match";
+  } else {
+    els.saSuggest.textContent = "";
+    els.saSuggest.className = "raga-summary";
+  }
+
+  // Prefill an estimated tempo; reset raga to None for the new take.
+  const bpm = estimateTempo(analysis.notes);
+  if (bpm) els.bpmInput.value = String(bpm);
+  els.ragaSelect.value = "";
+
+  setAnalyzeStatus(
+    `Done — ${analysis.notes.length} notes detected.` +
+      (sa != null ? ` Sa ~${midiToWestern(sa).label}.` : "") +
+      (bpm ? ` Tempo ~${bpm} BPM.` : "")
+  );
+  els.results.hidden = false;
+  renderContour();
+  renderNotes();
+  els.noteCount.textContent = `${analysis.notes.length} notes`;
+  els.playTime.textContent = `0:00 / ${fmtTime(analysis.duration)}`;
+}
+
 async function handleFile(file) {
   if (!file) return;
   try {
     setAnalyzeStatus(`Decoding “${file.name}”…`);
-    srcName = file.name.replace(/\.[^.]+$/, "") || "swar";
     els.results.hidden = true;
     const arrayBuf = await file.arrayBuffer();
     decodeCtx =
       decodeCtx || new (window.AudioContext || window.webkitAudioContext)();
     const audioBuffer = await decodeCtx.decodeAudioData(arrayBuf);
-
-    setAnalyzeStatus("Analyzing… 0%");
-    analysis = await analyzeFile(audioBuffer, (p) => {
-      setAnalyzeStatus(`Analyzing… ${Math.round(p * 100)}%`);
-    });
-
-    if (analysis.notes.length === 0) {
-      setAnalyzeStatus(
-        "No clear pitches found — try a cleaner monophonic vocal recording.",
-        true
-      );
-      return;
-    }
-
-    // Prepare playback source.
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-    objectUrl = URL.createObjectURL(file);
-    els.audioEl.src = objectUrl;
-
-    // Auto-detect Sa (tonic) for this clip and apply it, so the sequence is
-    // labeled relative to the recording's own Sa. User can still override via
-    // the Sa dropdown above.
-    const sa = detectSa(analysis.notes, 36, 72);
-    if (sa != null) {
-      els.saSelect.value = String(sa);
-      els.saSuggest.textContent = `Sa auto-detected: ${midiToWestern(sa).label} (change above to override)`;
-      els.saSuggest.className = "raga-summary match";
-    } else {
-      els.saSuggest.textContent = "";
-      els.saSuggest.className = "raga-summary";
-    }
-
-    // Prefill an estimated tempo; reset raga to None for the new recording.
-    const bpm = estimateTempo(analysis.notes);
-    if (bpm) els.bpmInput.value = String(bpm);
-    els.ragaSelect.value = "";
-
-    setAnalyzeStatus(
-      `Done — ${analysis.notes.length} notes detected.` +
-        (sa != null ? ` Sa ~${midiToWestern(sa).label}.` : "") +
-        (bpm ? ` Tempo ~${bpm} BPM.` : "")
-    );
-    els.results.hidden = false;
-    renderContour();
-    renderNotes();
-    els.noteCount.textContent = `${analysis.notes.length} notes`;
-    els.playTime.textContent = `0:00 / ${fmtTime(analysis.duration)}`;
+    await analyzeAndShow(audioBuffer, file, file.name);
   } catch (err) {
     setAnalyzeStatus(`Could not analyze file: ${err.message}`, true);
   }
@@ -1811,6 +1854,7 @@ function renderNotes() {
       `${swaraText(sw.idx)} (${sw.octaveName}) · ${west.label} · ${note.freq.toFixed(1)} Hz` +
       note_tag;
     chip.addEventListener("click", () => {
+      if (synthPlaying) stopSynth();
       els.audioEl.currentTime = note.startT;
       els.audioEl.play();
     });
@@ -1854,11 +1898,104 @@ function highlightNote(t) {
   }
 }
 
-// ---- Playback wiring ----
+// ---- Playback: recorded voice OR the detected notes as a synth tone ----
+let synthCtx = null;
+let synthNodes = [];
+let synthMaster = null;
+let synthTimer = null;
+let synthPlaying = false;
+
+// Schedule every detected note as an oscillator at its MIDI pitch, with a short
+// click-free envelope, then drive the playhead/highlight from the audio clock.
+async function startSynth(waveform) {
+  if (!analysis || !analysis.notes.length) return;
+  synthCtx = synthCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (synthCtx.state === "suspended") await synthCtx.resume();
+  stopSynthNodes();
+
+  const ctx = synthCtx;
+  const t0 = ctx.currentTime + 0.06;
+  synthMaster = ctx.createGain();
+  synthMaster.gain.value = 0.28;
+  synthMaster.connect(ctx.destination);
+
+  for (const n of analysis.notes) {
+    const osc = ctx.createOscillator();
+    osc.type = waveform;
+    osc.frequency.value = midiToFreq(n.midi);
+    const g = ctx.createGain();
+    const s = t0 + n.startT;
+    const e = t0 + n.endT;
+    g.gain.setValueAtTime(0, s);
+    g.gain.linearRampToValueAtTime(1, s + 0.012);
+    g.gain.setValueAtTime(1, Math.max(s + 0.013, e - 0.03));
+    g.gain.linearRampToValueAtTime(0, e);
+    osc.connect(g);
+    g.connect(synthMaster);
+    osc.start(s);
+    osc.stop(e + 0.03);
+    synthNodes.push(osc);
+  }
+
+  synthPlaying = true;
+  els.playBtn.textContent = "■ Stop";
+  // Drive the visual transport from the wall clock via setInterval (keeps
+  // advancing even if the tab is backgrounded, matching the scheduled audio).
+  const startWall = performance.now();
+  const total = analysis.duration;
+  const step = () => {
+    if (!synthPlaying) return;
+    const t = (performance.now() - startWall) / 1000;
+    if (t >= total) { stopSynth(); return; }
+    els.playTime.textContent = `${fmtTime(t)} / ${fmtTime(total)}`;
+    movePlayhead(t);
+    highlightNote(t);
+  };
+  step();
+  synthTimer = setInterval(step, 50);
+}
+
+function stopSynthNodes() {
+  for (const o of synthNodes) {
+    try { o.stop(); } catch (e) {}
+    try { o.disconnect(); } catch (e) {}
+  }
+  synthNodes = [];
+  if (synthMaster) { try { synthMaster.disconnect(); } catch (e) {} synthMaster = null; }
+}
+
+function stopSynth() {
+  synthPlaying = false;
+  if (synthTimer) { clearInterval(synthTimer); synthTimer = null; }
+  stopSynthNodes();
+  els.playBtn.textContent = "▶ Play";
+  highlightNote(-1);
+  movePlayhead(0);
+  els.playTime.textContent = `0:00 / ${fmtTime(analysis ? analysis.duration : 0)}`;
+}
+
+// Stop whichever source is currently playing.
+function stopAllPlayback() {
+  if (!els.audioEl.paused) els.audioEl.pause();
+  if (synthPlaying) stopSynth();
+}
+
 els.playBtn.addEventListener("click", () => {
-  if (els.audioEl.paused) els.audioEl.play();
-  else els.audioEl.pause();
+  if (!analysis || !analysis.notes.length) return;
+  const src = els.playSource.value;
+  if (src === "voice") {
+    if (synthPlaying) stopSynth();
+    if (els.audioEl.paused) els.audioEl.play();
+    else els.audioEl.pause();
+  } else {
+    if (synthPlaying) stopSynth();
+    else startSynth(src);
+  }
 });
+
+// Switching source stops any current playback so the two never overlap.
+els.playSource.addEventListener("change", stopAllPlayback);
+
 els.audioEl.addEventListener("play", () => { els.playBtn.textContent = "❚❚ Pause"; });
 els.audioEl.addEventListener("pause", () => { els.playBtn.textContent = "▶ Play"; });
 els.audioEl.addEventListener("ended", () => {
@@ -1876,6 +2013,102 @@ els.audioEl.addEventListener("timeupdate", () => {
 // ---- File input wiring ----
 els.fileBtn.addEventListener("click", () => els.fileInput.click());
 els.fileInput.addEventListener("change", (e) => handleFile(e.target.files[0]));
+
+// ======================================================================
+//  Live capture: record the mic -> note sequence (reuses the file pipeline)
+// ======================================================================
+let recording = false;
+let recProc = null;        // ScriptProcessorNode accumulating raw PCM
+let recChunks = [];        // Float32Array chunks captured while recording
+let recStart = 0;
+let recTimer = null;
+
+// Encode mono Float32 PCM as a 16-bit WAV blob (for in-app playback).
+function wavBlob(samples, sampleRate) {
+  const len = samples.length;
+  const ab = new ArrayBuffer(44 + len * 2);
+  const view = new DataView(ab);
+  const wr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  wr(0, "RIFF"); view.setUint32(4, 36 + len * 2, true); wr(8, "WAVE");
+  wr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); wr(36, "data"); view.setUint32(40, len * 2, true);
+  let off = 44;
+  for (let i = 0; i < len; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return new Blob([ab], { type: "audio/wav" });
+}
+
+function updateRecLabel() {
+  els.recordLabel.textContent = `Stop (${fmtTime((performance.now() - recStart) / 1000)})`;
+}
+
+async function startRecording() {
+  if (!listening) await startMic();        // recording needs the mic running
+  if (!audioCtx || !sourceNode || !muteNode) {
+    setStatus("Couldn't start the mic to record.", true);
+    return;
+  }
+  recChunks = [];
+  recProc = audioCtx.createScriptProcessor(4096, 1, 1);
+  recProc.onaudioprocess = (e) => {
+    if (!recording) return;
+    recChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  };
+  sourceNode.connect(recProc);
+  recProc.connect(muteNode); // muteNode -> destination (gain 0) keeps it running
+  recording = true;
+  recStart = performance.now();
+  els.recordBtn.classList.add("recording");
+  updateRecLabel();
+  recTimer = setInterval(updateRecLabel, 250);
+  setStatus("Recording… sing your phrase, then Stop to capture the notes.");
+}
+
+function finishRecording() {
+  if (!recording) return;
+  recording = false;
+  clearInterval(recTimer);
+  els.recordBtn.classList.remove("recording");
+  els.recordLabel.textContent = "Record notes";
+  if (recProc) {
+    recProc.onaudioprocess = null;
+    try { recProc.disconnect(); } catch (e) {}
+    recProc = null;
+  }
+
+  const rate = audioCtx ? audioCtx.sampleRate : 44100;
+  const total = recChunks.reduce((n, c) => n + c.length, 0);
+  if (total < rate * 0.3) {
+    recChunks = [];
+    setAnalyzeStatus("Recording too short — hold the phrase a little longer.", true);
+    return;
+  }
+  const pcm = new Float32Array(total);
+  let o = 0;
+  for (const c of recChunks) { pcm.set(c, o); o += c.length; }
+  recChunks = [];
+
+  // Build an AudioBuffer for the same offline pipeline the file path uses, and
+  // a WAV blob for playback. (Uses decodeCtx so it survives the mic teardown.)
+  decodeCtx = decodeCtx || new (window.AudioContext || window.webkitAudioContext)();
+  const buffer = decodeCtx.createBuffer(1, pcm.length, rate);
+  buffer.copyToChannel(pcm, 0);
+  const wav = wavBlob(pcm, rate);
+  const stamp = new Date().toTimeString().slice(0, 8).replace(/:/g, "-");
+  analyzeAndShow(buffer, wav, `recording-${stamp}`);
+  setStatus(listening ? "Captured — notes below. Mic still on." : "Captured — notes below.");
+  els.results.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+els.recordBtn.addEventListener("click", () => {
+  if (recording) finishRecording();
+  else startRecording();
+});
 
 function downloadBlob(data, filename, type) {
   const blob = new Blob([data], { type });
