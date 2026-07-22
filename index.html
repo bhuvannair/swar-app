@@ -647,6 +647,11 @@ body {
               <input type="checkbox" id="sa-at-c-toggle" checked />
               <span>Keyboard: C&nbsp;key = Sa</span>
             </label>
+            <label class="checkline">
+              <input type="checkbox" id="wakelock-toggle" />
+              <span>Keep screen awake</span>
+            </label>
+            <div class="inst-status" id="wakelock-status"></div>
           </section>
 
           <section class="group">
@@ -2344,6 +2349,7 @@ clearNote();
     speakDelay: 3,         // seconds of thinking time before it speaks
     voiceStyle: "phonetic", // "phonetic" (Sah, Ray, Gah) or "plain" (Sa, Re, Ga)
     saAtC: true,           // keyboard labels: C key = Sa (movable) vs actual pitch
+    wakeLockOn: false,     // keep the screen awake during practice (user toggle)
     pool: new Set(SHUDDHA),
     target: null,          // array of offsets; non-null while accepting a guess
     lastPlayed: null,      // last phrase, kept so Replay works after guessing
@@ -2537,6 +2543,78 @@ clearNote();
     comp.connect(ctx.destination);
     master = comp;
     return master;
+  }
+
+  // ---- Keep audio alive when the phone locks ------------------------------
+  // Mobile browsers suspend the AudioContext on screen lock, so the drone/tones
+  // go silent (speech keeps going via the OS). Routing the master bus through a
+  // playing <audio> element makes the OS treat it as media playback, which can
+  // continue in the background. Best-effort (esp. iOS); Wake Lock below is the
+  // reliable fallback. This never leaves you silent: it only drops the direct
+  // output *after* the media element confirms it is playing, and restores it if
+  // that element ever pauses.
+  let bgAudioEl = null;
+  let bgStreamDest = null;
+  let bgActive = false;
+
+  function enableBackgroundAudio() {
+    const ctx = ac();
+    masterBus(); // ensure `master` (compressor -> ctx.destination) exists
+    if ("mediaSession" in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "Swar — Ear Trainer",
+          artist: "Swar",
+        });
+      } catch (e) {}
+    }
+    if (!bgStreamDest) {
+      bgStreamDest = ctx.createMediaStreamDestination();
+      master.connect(bgStreamDest);
+      bgAudioEl = document.createElement("audio");
+      bgAudioEl.setAttribute("playsinline", "");
+      bgAudioEl.loop = true;
+      try { bgAudioEl.srcObject = bgStreamDest.stream; } catch (e) {}
+      // Safety net: if the media element ever pauses, restore direct output so
+      // foreground audio is never lost.
+      bgAudioEl.addEventListener("pause", () => {
+        if (bgActive) {
+          try { master.connect(ctx.destination); } catch (e) {}
+          bgActive = false;
+        }
+      });
+    }
+    if (bgActive) return;
+    const p = bgAudioEl.play();
+    if (p && p.then) {
+      p.then(() => {
+        try { master.disconnect(ctx.destination); } catch (e) {} // avoid doubling
+        bgActive = true;
+      }).catch(() => { bgActive = false; }); // keep the direct path if it won't play
+    }
+  }
+
+  // Screen Wake Lock — user-toggled. Keeps the screen on so it doesn't auto-lock
+  // (the reliable fix on iOS). It releases when the tab is hidden, so we
+  // re-acquire it on visibilitychange while the toggle is on.
+  let wakeLock = null;
+  async function acquireWakeLock() {
+    if (!state.wakeLockOn) return;
+    if (!("wakeLock" in navigator)) {
+      $("wakelock-status").textContent = "Wake Lock isn't supported on this browser.";
+      return;
+    }
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+      $("wakelock-status").textContent = "Screen will stay awake during practice.";
+    } catch (e) {
+      $("wakelock-status").textContent = "Couldn't keep the screen awake: " + e.message;
+    }
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+    $("wakelock-status").textContent = "";
   }
 
   // Synthesized voice — soft tone with a few harmonics (evens perceived loudness).
@@ -2814,6 +2892,7 @@ clearNote();
 
   // ---- Game flow ---------------------------------------------------------
   function newRound() {
+    enableBackgroundAudio(); // first play is a user gesture — arm background audio
     clearTimeout(nextTimer);
     clearSpeak();
     const pool = [...state.pool];
@@ -2927,6 +3006,7 @@ clearNote();
     $("tuning-select").onchange = (e) => applyTuning(e.target.value);
     $("drone-toggle").onchange = async (e) => {
       if (e.target.checked) {
+        enableBackgroundAudio();
         if (!droneTried) { droneTried = true; await tryLoadTanpuraSample(); }
         startDrone();
       } else stopDrone();
@@ -2981,6 +3061,7 @@ clearNote();
     };
     $("voice-style-select").onchange = (e) => { state.voiceStyle = e.target.value; };
     $("voice-preview-btn").onclick = async () => {
+      enableBackgroundAudio();
       if (!clipsTried) await tryLoadVoiceClips();
       $("voice-status").textContent = voiceClips
         ? "Using recorded clips"
@@ -2991,9 +3072,19 @@ clearNote();
     $("play-btn").onclick = newRound;
     $("replay-btn").onclick = () => {
       if (!state.lastPlayed) return;
+      enableBackgroundAudio();
       const endAt = playRound(state.lastPlayed);
       scheduleSpeak(state.lastPlayed, endAt); // re-arm the readback for the replay
     };
+    $("wakelock-toggle").onchange = (e) => {
+      state.wakeLockOn = e.target.checked;
+      if (state.wakeLockOn) acquireWakeLock();
+      else releaseWakeLock();
+    };
+    // Wake Lock is auto-released when the tab hides; re-acquire when visible.
+    document.addEventListener("visibilitychange", () => {
+      if (state.wakeLockOn && document.visibilityState === "visible") acquireWakeLock();
+    });
     $("undo-btn").onclick = () => {
       state.guess.pop();
       renderGuess();
