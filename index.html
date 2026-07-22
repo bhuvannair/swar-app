@@ -709,7 +709,7 @@ body {
 
           <section class="group bordered">
             <label class="checkline">
-              <input type="checkbox" id="drone-toggle" />
+              <input type="checkbox" id="drone-toggle" checked />
               <span>Tanpura drone on Sa</span>
             </label>
             <div class="lbl" style="margin-top:10px;">Tuning</div>
@@ -723,9 +723,9 @@ body {
             <div class="lbl" style="margin-top:10px;">Strings</div>
             <div id="strings" class="strings"></div>
             <div class="slider-row">
-              <span>Drone volume</span><span class="val" id="drone-vol-val">10%</span>
+              <span>Drone volume</span><span class="val" id="drone-vol-val">15%</span>
             </div>
-            <input type="range" id="drone-vol-slider" min="0" max="100" step="5" value="10" />
+            <input type="range" id="drone-vol-slider" min="0" max="100" step="5" value="15" />
             <div class="slider-row">
               <span>Drone timbre</span><span class="val" id="drone-tone-val">mellow</span>
             </div>
@@ -1528,7 +1528,7 @@ function populateSa() {
     el.textContent = o.label;
     els.saSelect.appendChild(el);
   }
-  els.saSelect.value = "48"; // C3 default
+  els.saSelect.value = "60"; // C4 default
 }
 
 function saMidi() {
@@ -2336,14 +2336,14 @@ clearNote();
   const state = {
     saMidi: 60,            // set from the shared Sa on init
     instrument: "synth",   // "synth" (offline oscillator) or a sampled key
-    drone: false,
-    droneGain: 0.006,      // per-voice gain; 10% on the volume slider
+    drone: true,           // tanpura drone on by default (starts on first gesture)
+    droneGain: 0.009,      // per-voice gain; 15% on the volume slider
     droneTone: 30,         // 0..100 -> low-pass cutoff; 30 = upper end of "mellow"
     strings: [-5, 0, 0, -12], // 4 tanpura strings (Pa tuning): Pa·mandra, Sa, Sa, Sa·mandra
     noteLen: 0.8,          // seconds
     gap: 0.4,              // seconds
     seqLen: 1,
-    ref: [true, true, false, true], // Sa · Pa · Sa↑ (no lower-Sa repeat) by default
+    ref: [false, false, false, false], // reference phrase off by default
     autoNext: false,       // auto-play a new round after each guess
     speak: false,          // read the answer aloud after the phrase
     speakDelay: 3,         // seconds of thinking time before it speaks
@@ -2755,6 +2755,19 @@ clearNote();
     if (droneNodes) { stopDrone(); startDrone(); }
   }
 
+  // Drone defaults to on, but audio can't start without a user gesture. Kick it
+  // off on the first interaction that happens while the Ear Trainer is visible.
+  let droneAutoStarted = false;
+  async function maybeAutoStartDrone() {
+    if (droneAutoStarted || !state.drone || droneNodes) return;
+    const panel = document.getElementById("panel-trainer");
+    if (!panel || panel.hidden) return; // wait until the trainer tab is showing
+    droneAutoStarted = true;
+    enableBackgroundAudio();
+    if (!droneTried) { droneTried = true; await tryLoadTanpuraSample(); }
+    if (state.drone && !droneNodes) startDrone();
+  }
+
   // ---- Rendering ---------------------------------------------------------
   const $ = (id) => document.getElementById(id);
 
@@ -3085,6 +3098,10 @@ clearNote();
     document.addEventListener("visibilitychange", () => {
       if (state.wakeLockOn && document.visibilityState === "visible") acquireWakeLock();
     });
+
+    // Start the default-on drone at the first user gesture on the Trainer tab.
+    document.addEventListener("pointerdown", maybeAutoStartDrone);
+    document.addEventListener("keydown", maybeAutoStartDrone);
     $("undo-btn").onclick = () => {
       state.guess.pop();
       renderGuess();
