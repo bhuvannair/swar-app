@@ -2755,17 +2755,20 @@ clearNote();
     if (droneNodes) { stopDrone(); startDrone(); }
   }
 
-  // Drone defaults to on, but audio can't start without a user gesture. Kick it
-  // off on the first interaction that happens while the Ear Trainer is visible.
+  // Drone defaults to on, but audio can't start without a user gesture. This
+  // starts it once, within a gesture (switching to the Trainer tab, or the
+  // first interaction on it).
   let droneAutoStarted = false;
-  async function maybeAutoStartDrone() {
+  async function autoStartDroneNow() {
     if (droneAutoStarted || !state.drone || droneNodes) return;
-    const panel = document.getElementById("panel-trainer");
-    if (!panel || panel.hidden) return; // wait until the trainer tab is showing
     droneAutoStarted = true;
     enableBackgroundAudio();
     if (!droneTried) { droneTried = true; await tryLoadTanpuraSample(); }
     if (state.drone && !droneNodes) startDrone();
+  }
+  function maybeAutoStartDrone() {
+    const panel = document.getElementById("panel-trainer");
+    if (panel && !panel.hidden) autoStartDroneNow(); // only when the trainer shows
   }
 
   // ---- Rendering ---------------------------------------------------------
@@ -3099,7 +3102,10 @@ clearNote();
       if (state.wakeLockOn && document.visibilityState === "visible") acquireWakeLock();
     });
 
-    // Start the default-on drone at the first user gesture on the Trainer tab.
+    // Start the default-on drone when switching to the Trainer tab (the tab
+    // click is a valid gesture), or on the first interaction if already there.
+    const trainerTabBtn = document.querySelector('.tab[data-tab="trainer"]');
+    if (trainerTabBtn) trainerTabBtn.addEventListener("click", autoStartDroneNow);
     document.addEventListener("pointerdown", maybeAutoStartDrone);
     document.addEventListener("keydown", maybeAutoStartDrone);
     $("undo-btn").onclick = () => {
